@@ -20,6 +20,7 @@
 //   DSH_EXTRA_ARGS dsh web に追加する引数（空白区切り）
 //   WORKSPACE_ROOT ユーザーごとの作業フォルダの親（例: C:\ProgramData\kenji\workspace）。
 //                  新しいセッションは <WORKSPACE_ROOT>\<ユーザー名> で始まる
+//   EXTRA_PATH     dsh の PATH の先頭に足すディレクトリ（; 区切り）。プラグイン管理が使う pnpm / git の場所
 //   PUBLIC_URL     公開 URL（例: https://example.ngrok-free.dev/harness/）。PC 版 UI の案内 URL に使う
 import { spawn } from 'node:child_process'
 import { createReadStream, existsSync, mkdirSync, statSync } from 'node:fs'
@@ -95,7 +96,7 @@ function startDsh() {
   const cwd = WORKSPACE_ROOT && existsSync(WORKSPACE_ROOT) ? WORKSPACE_ROOT : ROOT
   const child = spawn(process.execPath, args, {
     cwd,
-    env: { ...process.env, DSH_TELEMETRY_DISABLED: '1', BROWSER: 'none' },
+    env: childEnv(),
     stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,
   })
@@ -127,6 +128,17 @@ function startDsh() {
     const delay = Math.min(30_000, 1000 * 2 ** Math.min(dsh.restarts, 5))
     setTimeout(startDsh, delay)
   })
+}
+
+function childEnv() {
+  const env = { ...process.env, DSH_TELEMETRY_DISABLED: '1', BROWSER: 'none', COREPACK_ENABLE_DOWNLOAD_PROMPT: '0' }
+  const extra = (process.env.EXTRA_PATH ?? '').split(path.delimiter).filter(Boolean)
+  if (extra.length) {
+    // Windows の環境変数名は大文字小文字を区別しないため、既存のキー名に合わせる
+    const key = Object.keys(env).find(k => k.toLowerCase() === 'path') ?? 'PATH'
+    env[key] = [...extra, env[key] ?? ''].filter(Boolean).join(path.delimiter)
+  }
+  return env
 }
 
 function lineReader(stream, onLine) {
