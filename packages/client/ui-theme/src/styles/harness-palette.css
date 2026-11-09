@@ -1,0 +1,47 @@
+/* Harness palette for the vendor-neutral fork, layered after design-platform.css.
+ * Loaded last among the theme sheets. The accent ramp (historically named deepseek-*) becomes a warm orange in both
+ * themes; the dark theme swaps the bluish greys for near-neutral charcoal steps.
+ * Alias tokens keep pointing at the same static names, so every component
+ * follows without per-component edits. */
+:root,
+body {
+  --dsw-static-deepseek-50: rgb(253, 242, 236);
+  --dsw-static-deepseek-100: rgb(251, 228, 216);
+  --dsw-static-deepseek-200: rgb(247, 205, 184);
+  --dsw-static-deepseek-300: rgb(241, 172, 138);
+  --dsw-static-deepseek-400: rgb(234, 142, 101);
+  --dsw-static-deepseek-450: rgb(224, 123, 83);
+  --dsw-static-deepseek-500: rgb(206, 104, 64);
+  --dsw-static-deepseek-600: rgb(176, 86, 54);
+  --dsw-static-deepseek-800: rgb(84, 50, 37);
+  --dsw-static-deepseek-900: rgb(58, 38, 30);
+}
+
+body[data-ds-dark-theme] {
+  --dsw-static-neutral-bluish-1000: rgb(13, 13, 13);
+  --dsw-static-neutral-bluish-950: rgb(24, 24, 24);
+  --dsw-static-neutral-bluish-900: rgb(20, 20, 20);
+  --dsw-static-neutral-bluish-875: rgb(31, 31, 31);
+  --dsw-static-neutral-bluish-850: rgb(38, 38, 38);
+  --dsw-static-neutral-bluish-800: rgb(46, 46, 46);
+  --dsw-static-neutral-bluish-750: rgb(58, 58, 58);
+  --dsw-static-neutral-bluish-700: rgb(74, 74, 74);
+  --dsw-static-neutral-bluish-600: rgb(122, 122, 122);
+  --dsw-static-neutral-bluish-500: rgb(150, 150, 150);
+  --dsw-static-neutral-bluish-400: rgb(168, 168, 168);
+  --dsw-static-neutral-bluish-310: rgb(196, 196, 196);
+  --dsw-static-neutral-bluish-300: rgb(201, 201, 201);
+  --dsw-static-neutral-bluish-200: rgb(224, 224, 224);
+  --dsw-static-neutral-bluish-150: rgb(230, 230, 230);
+  --dsw-static-neutral-bluish-100: rgb(232, 232, 232);
+  --dsw-static-neutral-bluish-90: rgb(236, 236, 236);
+  --dsw-static-neutral-bluish-75: rgb(238, 238, 238);
+  --dsw-static-neutral-bluish-60: rgb(240, 240, 240);
+  --dsw-static-neutral-bluish-55: rgb(241, 241, 241);
+  --dsw-static-neutral-bluish-50: rgb(242, 242, 242);
+  /* The sidebar shares the canvas color, and menus use a solid charcoal surface. */
+  --dsw-specific-sidebar-fill: var(--dsw-static-neutral-bluish-950);
+  --dsw-menu-surface-fill: rgba(38, 38, 38, 0.96);
+  --dsw-alias-menu-group-header-fill: rgba(38, 38, 38, 0.96);
+  --dsw-linear-gradient-think: linear-gradient(180deg, #181818 20.19%, rgba(24, 24, 24, 0) 100%);
+}

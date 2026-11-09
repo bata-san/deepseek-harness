@@ -55,11 +55,11 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle state) {
         super.onCreate(state);
         Window window = getWindow();
-        window.setStatusBarColor(Color.parseColor("#151517"));
-        window.setNavigationBarColor(Color.parseColor("#151517"));
+        window.setStatusBarColor(Color.parseColor("#181818"));
+        window.setNavigationBarColor(Color.parseColor("#181818"));
 
         FrameLayout root = new FrameLayout(this);
-        root.setBackgroundColor(Color.parseColor("#151517"));
+        root.setBackgroundColor(Color.parseColor("#181818"));
         web = new WebView(this);
         progress = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
         progress.setIndeterminate(true);
@@ -152,7 +152,7 @@ public class MainActivity extends Activity {
     private void showError(String detail) {
         showingError = true;
         String html = "<!doctype html><html lang='ja'><meta name='viewport' content='width=device-width,initial-scale=1'>"
-            + "<body style='margin:0;background:#151517;color:#f4f4f5;font:15px/1.7 sans-serif;display:flex;align-items:center;justify-content:center;height:100vh'>"
+            + "<body style='margin:0;background:#181818;color:#f4f4f5;font:15px/1.7 sans-serif;display:flex;align-items:center;justify-content:center;height:100vh'>"
             + "<div style='padding:24px;max-width:340px'><h2 style='font-size:19px;margin:0 0 8px'>Harness に接続できません</h2>"
             + "<p style='color:#a1a1aa;margin:0 0 16px'>PC の Kenji と ngrok が動いているか、接続先 URL が正しいかを確認してください。</p>"
             + "<p style='color:#71717a;font-size:12px;word-break:break-all'>" + escape(serverUrl()) + "<br>" + escape(detail) + "</p>"

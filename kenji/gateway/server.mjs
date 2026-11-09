@@ -357,14 +357,14 @@ function proxyUpgrade(req, socket, head, upstreamPath) {
 const LOGIN_HTML = `<!doctype html>
 <html lang="ja"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#151517" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#181818" media="(prefers-color-scheme: dark)">
 <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
 <title>Harness にログイン</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;600&display=swap">
 <style>
 :root{--bg:#fff;--fg:#18181b;--muted:#71717a;--line:#e4e4e7;--card:#fff;--btn:#18181b;--btnfg:#fff;--err:#dc2626}
-@media(prefers-color-scheme:dark){:root{--bg:#151517;--fg:#f4f4f5;--muted:#a1a1aa;--line:#2e2e33;--card:#1d1d20;--btn:#f4f4f5;--btnfg:#151517;--err:#f87171}}
+@media(prefers-color-scheme:dark){:root{--bg:#181818;--fg:#f2f2f2;--muted:#a8a8a8;--line:#2e2e2e;--card:#1f1f1f;--btn:#f4f4f5;--btnfg:#181818;--err:#f87171}}
 *{box-sizing:border-box}html,body{height:100%}body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.6 "IBM Plex Sans JP",system-ui,sans-serif;display:flex;align-items:center;justify-content:center;padding:24px}
 main{width:100%;max-width:360px}h1{font-size:22px;margin:0 0 4px;font-weight:600}p{margin:0 0 24px;color:var(--muted);font-size:14px}
 label{display:block;font-size:13px;color:var(--muted);margin:14px 0 6px}
