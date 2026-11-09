@@ -15,15 +15,18 @@
 //   BASE_PATH      公開パス接頭辞（既定: /harness）。接頭辞なしのアクセスも受け付ける
 //   KENJI_URL      Kenji API（既定: http://127.0.0.1:8787）
 //   MIN_ROLE       利用に必要な Kenji ロール（viewer|operator|admin、既定: operator）
-//   DSH_PORT       dsh web のポート（既定: 3080）
-//   DSH_HOME       dsh のデータディレクトリ（未指定なら dsh の既定）
+//   DSH_PORT       ユーザー別 dsh web に割り当てるポートの開始値（既定: 3080。使用中なら空きポートへ）
+//   DSH_HOME       旧・共有データディレクトリ。LEGACY_HOME_OWNER のユーザーへ 1 回だけ移す（移行用）
+//   LEGACY_HOME_OWNER 旧共有データの持ち主（既定: admin）
+//   IDLE_MINUTES   実行中セッションのないユーザー別 dsh を止めるまでの無操作時間（既定: 30。0 で止めない）
 //   DSH_EXTRA_ARGS dsh web に追加する引数（空白区切り）
-//   WORKSPACE_ROOT ユーザーごとの作業フォルダの親（例: C:\ProgramData\kenji\workspace）。
-//                  新しいセッションは <WORKSPACE_ROOT>\<ユーザー名> で始まる
+//   WORKSPACE_ROOT ユーザーごとのルートフォルダの親（例: C:\ProgramData\kenji\workspace）。
+//                  <WORKSPACE_ROOT>\<ユーザー名> がそのユーザーのホーム兼ルートで、
+//                  設定・認証情報・セッション・プラグインは <ルート>\.dsh に完全に分かれて入る
 //   EXTRA_PATH     dsh の PATH の先頭に足すディレクトリ（; 区切り）。プラグイン管理が使う pnpm / git の場所
 //   PUBLIC_URL     公開 URL（例: https://example.ngrok-free.dev/harness/）。dsh が案内する Web UI の URL に使う
 import { spawn } from 'node:child_process'
-import { createReadStream, existsSync, mkdirSync, statSync } from 'node:fs'
+import { createReadStream, existsSync, mkdirSync, renameSync, statSync } from 'node:fs'
 import http from 'node:http'
 import net from 'node:net'
 import path from 'node:path'
@@ -35,16 +38,24 @@ const HOST = process.env.GATEWAY_HOST ?? '127.0.0.1'
 const PORT = Number(process.env.GATEWAY_PORT ?? 3090)
 const BASE = normalizeBase(process.env.BASE_PATH ?? '/harness')
 const KENJI = (process.env.KENJI_URL ?? 'http://127.0.0.1:8787').replace(/\/+$/, '')
-const DSH_PORT = Number(process.env.DSH_PORT ?? 3080)
+const DSH_PORT_BASE = Number(process.env.DSH_PORT ?? 3080)
+const IDLE_MS = Number(process.env.IDLE_MINUTES ?? 30) * 60_000
+const LEGACY_HOME = process.env.DSH_HOME ? path.resolve(process.env.DSH_HOME) : ''
+const LEGACY_OWNER = (process.env.LEGACY_HOME_OWNER ?? 'admin').toLowerCase()
 const ROLE_RANK = { viewer: 0, operator: 1, admin: 2 }
 const MIN_ROLE = ROLE_RANK[process.env.MIN_ROLE ?? 'operator'] ?? 1
 const SESSION_COOKIE = 'kh_session'
 const WORKSPACE_ROOT = process.env.WORKSPACE_ROOT ? path.resolve(process.env.WORKSPACE_ROOT) : ''
 const PUBLIC_URL = (process.env.PUBLIC_URL ?? '').trim()
 
-/** Kenji ユーザーの作業フォルダ（Kenji 本体と同じ workspace/<ユーザー名>）。なければ作る */
+const RESERVED_NAMES = /^(con|prn|aux|nul|com\d|lpt\d)(\..*)?$/i
+function safeUserName(username) {
+  return /^[\w.@-]{1,64}$/.test(username) && !username.startsWith('.') && !username.endsWith('.') && !RESERVED_NAMES.test(username)
+}
+
+/** Kenji ユーザーのホーム兼ルートフォルダ（Kenji 本体と同じ workspace/<ユーザー名>）。なければ作る */
 function userWorkspace(username) {
-  if (!WORKSPACE_ROOT || !/^[\w.@-]{1,64}$/.test(username) || username.startsWith('.')) return null
+  if (!WORKSPACE_ROOT || !safeUserName(username)) return null
   const dir = path.join(WORKSPACE_ROOT, username)
   try {
     mkdirSync(dir, { recursive: true })
@@ -65,16 +76,11 @@ function log(...args) {
 }
 
 // ---------------------------------------------------------------------------
-// dsh 子プロセス
+// dsh 子プロセス（Kenji ユーザーごとに 1 つ）
 // ---------------------------------------------------------------------------
-const dsh = {
-  child: null,
-  token: null,
-  cookie: null,
-  ready: false,
-  restarts: 0,
-  lastLines: [],
-}
+// ユーザーのルートフォルダを HOME / USERPROFILE / APPDATA にし、dsh の設定・認証情報・
+// セッション・プラグインは <ルート>\.dsh に置く。ユーザー間でデータも認証情報も共有しない。
+const instances = new Map() // 小文字のユーザー名 -> instance
 
 function dshEntry() {
   const built = path.join(ROOT, 'apps', 'cli', 'lib', 'bin.js')
@@ -83,35 +89,78 @@ function dshEntry() {
   return ['--import', 'tsx/esm', path.join(ROOT, 'apps', 'cli', 'src', 'bin.ts')]
 }
 
-function startDsh() {
+function freePort(preferred) {
+  return new Promise((resolve, reject) => {
+    const probe = net.createServer()
+    probe.once('error', () => {
+      const any = net.createServer()
+      any.once('error', reject)
+      any.listen(0, '127.0.0.1', () => { const { port } = any.address(); any.close(() => resolve(port)) })
+    })
+    probe.listen(preferred, '127.0.0.1', () => probe.close(() => resolve(preferred)))
+  })
+}
+
+/** 旧・共有データ（DSH_HOME）を持ち主のホームへ 1 回だけ移す。他のユーザーには引き継がない */
+function migrateLegacyHome(username, dshHome) {
+  if (!LEGACY_HOME || username.toLowerCase() !== LEGACY_OWNER || existsSync(dshHome) || !existsSync(LEGACY_HOME)) return
+  try {
+    renameSync(LEGACY_HOME, dshHome)
+    log(`moved the shared harness data ${LEGACY_HOME} -> ${dshHome}`)
+  } catch (error) {
+    log(`could not move the shared harness data (${error.message}); ${username} starts with an empty home`)
+  }
+}
+
+async function getInstance(user) {
+  const key = user.username.toLowerCase()
+  let inst = instances.get(key)
+  if (!inst) {
+    const rootDir = userWorkspace(user.username)
+    if (!rootDir) return null
+    const dshHome = path.join(rootDir, '.dsh')
+    migrateLegacyHome(user.username, dshHome)
+    inst = {
+      username: user.username, rootDir, dshHome, port: 0, child: null, token: null, cookie: null,
+      ready: false, restarts: 0, lastLines: [], lastActive: Date.now(), stopped: false, starting: null,
+    }
+    instances.set(key, inst)
+  }
+  inst.lastActive = Date.now()
+  if (!inst.child && !inst.starting && !shuttingDown) inst.starting = startDsh(inst).finally(() => { inst.starting = null })
+  return inst
+}
+
+async function startDsh(inst) {
+  inst.stopped = false
+  inst.port ||= await freePort(DSH_PORT_BASE + instances.size)
   const extra = (process.env.DSH_EXTRA_ARGS ?? '').split(/\s+/).filter(Boolean)
-  const args = [...dshEntry(), 'web', '--no-open', '--host', '127.0.0.1', '--port', String(DSH_PORT),
+  const args = [...dshEntry(), 'web', '--no-open', '--host', '127.0.0.1', '--port', String(inst.port),
     ...(PUBLIC_URL ? ['--public-url', PUBLIC_URL.endsWith('/') ? PUBLIC_URL : `${PUBLIC_URL}/`] : []), ...extra]
-  log('starting dsh:', process.execPath, args.join(' '))
-  dsh.ready = false
-  dsh.token = null
-  dsh.cookie = null
-  // 既定の作業フォルダはハーネス本体のソースではなく、ユーザー用ワークスペースの親にする
-  const cwd = WORKSPACE_ROOT && existsSync(WORKSPACE_ROOT) ? WORKSPACE_ROOT : ROOT
+  log(`starting dsh for ${inst.username} on :${inst.port}`)
+  inst.ready = false
+  inst.token = null
+  inst.cookie = null
+  mkdirSync(inst.dshHome, { recursive: true })
   const child = spawn(process.execPath, args, {
-    cwd,
-    env: childEnv(),
+    cwd: inst.rootDir,
+    env: childEnv(inst),
     stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,
   })
-  dsh.child = child
+  inst.child = child
   const onLine = (line) => {
     const match = /dsh web: (\S+)/.exec(line)
     const shown = line.replace(/([?&]token=)[^&\s]+/g, '$1<redacted>')
-    dsh.lastLines.push(shown)
-    if (dsh.lastLines.length > 200) dsh.lastLines.shift()
-    console.log('[dsh]', shown)
+    inst.lastLines.push(shown)
+    if (inst.lastLines.length > 200) inst.lastLines.shift()
+    console.log(`[dsh:${inst.username}]`, shown)
     if (match) {
       try {
         const token = new URL(match[1]).searchParams.get('token')
         if (token) {
-          dsh.token = token
-          void exchangeToken()
+          inst.token = token
+          void exchangeToken(inst)
         }
       } catch { /* 表示用 URL 以外の行は無視 */ }
     }
@@ -119,18 +168,36 @@ function startDsh() {
   lineReader(child.stdout, onLine)
   lineReader(child.stderr, onLine)
   child.on('exit', (code, signal) => {
-    log(`dsh exited (code=${code} signal=${signal})`)
-    dsh.child = null
-    dsh.ready = false
-    if (shuttingDown) return
-    dsh.restarts += 1
-    const delay = Math.min(30_000, 1000 * 2 ** Math.min(dsh.restarts, 5))
-    setTimeout(startDsh, delay)
+    log(`dsh for ${inst.username} exited (code=${code} signal=${signal})`)
+    inst.child = null
+    inst.ready = false
+    if (shuttingDown || inst.stopped) return
+    inst.restarts += 1
+    const delay = Math.min(30_000, 1000 * 2 ** Math.min(inst.restarts, 5))
+    setTimeout(() => { if (!inst.child && !inst.starting && !shuttingDown && !inst.stopped) inst.starting = startDsh(inst).finally(() => { inst.starting = null }) }, delay)
   })
 }
 
-function childEnv() {
-  const env = { ...process.env, DSH_TELEMETRY_DISABLED: '1', BROWSER: 'none', COREPACK_ENABLE_DOWNLOAD_PROMPT: '0' }
+// 認証情報になりうる環境変数は子プロセスへ渡さない（ゲートウェイ自身の環境に紛れ込んでいても漏らさない）
+const SECRET_ENV = /(token|secret|password|passwd|api[_-]?key|credential|private[_-]?key)/i
+
+function childEnv(inst) {
+  const env = {}
+  for (const [key, value] of Object.entries(process.env)) {
+    if (SECRET_ENV.test(key) || key === 'DSH_HOME') continue
+    env[key] = value
+  }
+  const home = inst.rootDir
+  const local = path.join(home, 'AppData', 'Local')
+  const roaming = path.join(home, 'AppData', 'Roaming')
+  const temp = path.join(home, '.tmp')
+  for (const dir of [local, roaming, temp]) mkdirSync(dir, { recursive: true })
+  Object.assign(env, {
+    DSH_HOME: inst.dshHome, HOME: home, USERPROFILE: home, APPDATA: roaming, LOCALAPPDATA: local,
+    XDG_CONFIG_HOME: roaming, XDG_DATA_HOME: local, XDG_CACHE_HOME: path.join(local, 'cache'),
+    TEMP: temp, TMP: temp, TMPDIR: temp,
+    DSH_TELEMETRY_DISABLED: '1', BROWSER: 'none', COREPACK_ENABLE_DOWNLOAD_PROMPT: '0',
+  })
   const extra = (process.env.EXTRA_PATH ?? '').split(path.delimiter).filter(Boolean)
   if (extra.length) {
     // Windows の環境変数名は大文字小文字を区別しないため、既存のキー名に合わせる
@@ -153,26 +220,32 @@ function lineReader(stream, onLine) {
   })
 }
 
-// 起動トークンを dsh の署名付き Cookie に交換する（Host は常に 127.0.0.1:DSH_PORT）
-async function exchangeToken() {
-  for (let attempt = 0; attempt < 20 && dsh.token; attempt += 1) {
+// 起動トークンを dsh の署名付き Cookie に交換する（Host は常に 127.0.0.1:そのユーザーのポート）
+async function exchangeToken(inst) {
+  for (let attempt = 0; attempt < 20 && inst.token; attempt += 1) {
     try {
-      const response = await fetch(`http://127.0.0.1:${DSH_PORT}/?token=${encodeURIComponent(dsh.token)}`, { redirect: 'manual' })
+      const response = await fetch(`http://127.0.0.1:${inst.port}/?token=${encodeURIComponent(inst.token)}`, { redirect: 'manual' })
       const cookies = response.headers.getSetCookie?.() ?? []
       const pairs = cookies.map(c => c.split(';')[0]).filter(c => c.startsWith('dsh-auth-'))
       if (pairs.length > 0) {
-        dsh.cookie = pairs.join('; ')
-        dsh.ready = true
-        dsh.restarts = 0
-        log('dsh is ready')
+        inst.cookie = pairs.join('; ')
+        inst.ready = true
+        inst.restarts = 0
+        log(`dsh for ${inst.username} is ready`)
         return
       }
-      log(`token exchange returned ${response.status} without a cookie; retrying`)
+      log(`token exchange for ${inst.username} returned ${response.status} without a cookie; retrying`)
     } catch (error) {
-      log('token exchange failed:', error.message)
+      log(`token exchange for ${inst.username} failed:`, error.message)
     }
     await new Promise(r => setTimeout(r, 1000))
   }
+}
+
+function stopInstance(inst) {
+  inst.stopped = true
+  inst.ready = false
+  inst.child?.kill()
 }
 
 // ---------------------------------------------------------------------------
@@ -274,6 +347,7 @@ async function handleAuth(req, res, rel) {
     if ((ROLE_RANK[value.role] ?? -1) < MIN_ROLE) {
       return sendJson(res, 403, { error: 'このアカウントにはハーネスの利用権限がありません（operator 以上が必要です）' })
     }
+    void getInstance({ username: value.username }).catch(error => log('could not start the harness for the user:', error.message))
     const maxAge = value.expires_at ? Math.max(60, Math.floor((Date.parse(value.expires_at) - Date.now()) / 1000)) : 12 * 3600
     return sendJson(res, 200, { username: value.username, role: value.role, expiresAt: value.expires_at, workspace: userWorkspace(value.username) },
       { 'set-cookie': sessionCookie(req, value.token, maxAge) })
@@ -286,7 +360,8 @@ async function handleAuth(req, res, rel) {
   if (rel === '/auth/me') {
     const user = await authenticate(req)
     if (!user) return sendJson(res, 401, { error: 'unauthenticated' })
-    return sendJson(res, 200, { ...user, workspace: userWorkspace(user.username), harness: { ready: dsh.ready, restarts: dsh.restarts } })
+    const inst = await getInstance(user)
+    return sendJson(res, 200, { ...user, workspace: userWorkspace(user.username), harness: { ready: Boolean(inst?.ready), restarts: inst?.restarts ?? 0 } })
   }
   return sendJson(res, 404, { error: 'not found' })
 }
@@ -298,22 +373,33 @@ const HOP_HEADERS = new Set(['connection', 'keep-alive', 'proxy-connection', 'tr
 const DROP_UPSTREAM = new Set(['cookie', 'origin', 'referer', 'host', 'sec-fetch-site', 'sec-fetch-mode', 'sec-fetch-dest', 'sec-fetch-user',
   'x-forwarded-for', 'x-forwarded-host', 'x-forwarded-proto', 'forwarded'])
 
-function upstreamHeaders(req) {
+function upstreamHeaders(req, inst) {
   const headers = {}
   for (const [key, value] of Object.entries(req.headers)) {
     const lower = key.toLowerCase()
     if (HOP_HEADERS.has(lower) || DROP_UPSTREAM.has(lower) || lower.startsWith('ngrok-')) continue
     headers[lower] = value
   }
-  headers.host = `127.0.0.1:${DSH_PORT}`
-  if (dsh.cookie) headers.cookie = dsh.cookie
+  headers.host = `127.0.0.1:${inst.port}`
+  if (inst.cookie) headers.cookie = inst.cookie
   return headers
 }
 
-function proxyHttp(req, res, upstreamPath) {
-  if (!dsh.ready) return sendJson(res, 503, { error: 'ハーネスを起動中です。少し待ってから再読み込みしてください。' })
+const STARTING_HTML = `<!doctype html><html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="refresh" content="3"><title>起動中</title>
+<style>body{margin:0;height:100vh;display:flex;align-items:center;justify-content:center;background:#181818;color:#f2f2f2;font:15px "IBM Plex Sans JP",system-ui,sans-serif}</style>
+<body>ハーネスを起動しています…（数秒で自動的に開きます）</body></html>`
+
+function proxyHttp(req, res, upstreamPath, inst) {
+  if (!inst?.ready) {
+    if (wantsHtml(req)) {
+      res.writeHead(503, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'retry-after': '3' })
+      return res.end(STARTING_HTML)
+    }
+    return sendJson(res, 503, { error: 'ハーネスを起動中です。少し待ってから再読み込みしてください。' })
+  }
   const upstream = http.request({
-    host: '127.0.0.1', port: DSH_PORT, method: req.method, path: upstreamPath, headers: upstreamHeaders(req),
+    host: '127.0.0.1', port: inst.port, method: req.method, path: upstreamPath, headers: upstreamHeaders(req, inst),
   }, (response) => {
     const headers = {}
     for (const [key, value] of Object.entries(response.headers)) {
@@ -335,9 +421,9 @@ function proxyHttp(req, res, upstreamPath) {
   req.pipe(upstream)
 }
 
-function proxyUpgrade(req, socket, head, upstreamPath) {
-  const target = net.connect(DSH_PORT, '127.0.0.1', () => {
-    const headers = upstreamHeaders(req)
+function proxyUpgrade(req, socket, head, upstreamPath, inst) {
+  const target = net.connect(inst.port, '127.0.0.1', () => {
+    const headers = upstreamHeaders(req, inst)
     headers.connection = 'Upgrade'
     headers.upgrade = req.headers.upgrade ?? 'websocket'
     const lines = [`GET ${upstreamPath} HTTP/1.1`, ...Object.entries(headers).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`), '', '']
@@ -439,7 +525,7 @@ const server = http.createServer(async (req, res) => {
       return res.end()
     }
     const rel = rawRel
-    if (rel === '/healthz') return sendJson(res, 200, { ok: true, harness: dsh.ready })
+    if (rel === '/healthz') return sendJson(res, 200, { ok: true, harness: [...instances.values()].some(i => i.ready), users: instances.size })
     if (rel === '/app/version.json' || rel === '/app/kenji-harness.apk') return serveApp(res, rel.slice('/app/'.length))
     if (rel === '/login') return sendLogin(res)
     if (rel === '/logout') {
@@ -460,7 +546,9 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 401, { error: 'unauthenticated' })
     }
     if (req.method !== 'GET' && req.method !== 'HEAD' && !sameOrigin(req)) return sendJson(res, 403, { error: 'cross-origin request refused' })
-    return proxyHttp(req, res, rel + queryOf(url))
+    const inst = await getInstance(user)
+    if (!inst) return sendJson(res, 403, { error: 'このユーザー名ではハーネスを使えません' })
+    return proxyHttp(req, res, rel + queryOf(url), inst)
   } catch (error) {
     log('request failed:', error)
     if (!res.headersSent) sendJson(res, 500, { error: 'internal error' })
@@ -471,7 +559,7 @@ const server = http.createServer(async (req, res) => {
 server.on('upgrade', async (req, socket, head) => {
   const url = req.url ?? '/'
   const target = stripFull(relativePath(url).rel)
-  if (target !== '/api/remote.mux' || !dsh.ready) {
+  if (target !== '/api/remote.mux') {
     socket.end('HTTP/1.1 404 Not Found\r\n\r\n')
     return
   }
@@ -480,7 +568,12 @@ server.on('upgrade', async (req, socket, head) => {
     socket.end('HTTP/1.1 401 Unauthorized\r\n\r\n')
     return
   }
-  proxyUpgrade(req, socket, head, target + queryOf(url))
+  const inst = await getInstance(user)
+  if (!inst?.ready) {
+    socket.end('HTTP/1.1 503 Service Unavailable\r\n\r\n')
+    return
+  }
+  proxyUpgrade(req, socket, head, target + queryOf(url), inst)
 })
 
 let shuttingDown = false
@@ -492,7 +585,7 @@ function shutdown(exitCode = 0) {
   // status (75 = restart for an update) even when the timer below never fires.
   process.exitCode = exitCode
   server.close()
-  if (dsh.child) dsh.child.kill()
+  for (const inst of instances.values()) stopInstance(inst)
   setTimeout(() => process.exit(exitCode), 3000).unref()
 }
 
@@ -508,20 +601,37 @@ function restartStamp() {
   try { return statSync(RESTART_FILE).mtimeMs } catch { return 0 }
 }
 
-async function anySessionRunning() {
-  if (!dsh.ready) return false
+async function sessionRunning(inst) {
+  if (!inst.ready) return false
   try {
-    const response = await fetch(`http://127.0.0.1:${DSH_PORT}/api/session/list`, {
+    const response = await fetch(`http://127.0.0.1:${inst.port}/api/session/list`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', cookie: dsh.cookie ?? '' },
+      headers: { 'content-type': 'application/json', cookie: inst.cookie ?? '' },
       body: JSON.stringify({ type: 'client-request', rpcId: `restart-${Date.now()}`, method: 'session/list', payload: { args: { _request: {} } } }),
     })
     const body = await response.json()
     return Boolean(body?.result?.value?.items?.some(item => item.running))
   } catch (error) {
-    log('could not read session state before restart:', error.message)
+    log(`could not read the session state of ${inst.username}:`, error.message)
     return false
   }
+}
+
+async function anySessionRunning() {
+  for (const inst of instances.values()) if (await sessionRunning(inst)) return true
+  return false
+}
+
+// 実行中のセッションがなく、しばらく操作もないユーザーの dsh は止めてメモリを空ける（次のアクセスで起動し直す）
+if (IDLE_MS > 0) {
+  setInterval(async () => {
+    for (const inst of instances.values()) {
+      if (!inst.child || Date.now() - inst.lastActive < IDLE_MS) continue
+      if (await sessionRunning(inst)) { inst.lastActive = Date.now(); continue }
+      log(`stopping the idle harness of ${inst.username}`)
+      stopInstance(inst)
+    }
+  }, 60_000).unref()
 }
 
 const startStamp = restartStamp()
@@ -539,6 +649,5 @@ process.on('SIGINT', () => shutdown(0))
 process.on('SIGTERM', () => shutdown(0))
 
 server.listen(PORT, HOST, () => {
-  log(`listening on http://${HOST}:${PORT}${BASE}/ (harness root: ${ROOT})`)
-  startDsh()
+  log(`listening on http://${HOST}:${PORT}${BASE}/ (harness root: ${ROOT}, user homes: ${WORKSPACE_ROOT || '(none)'})`)
 })
