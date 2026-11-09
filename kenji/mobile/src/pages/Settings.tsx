@@ -37,7 +37,8 @@ async function mutate(ns: string, ops: { op: 'set' | 'unset'; path: string[]; va
   await call('settings/mutate', { ns, ops, expectedRevision: current?.revision ?? 0 })
 }
 
-type ModelEntry = { id: string; name?: string; contextWindow?: number }
+type ModelEntry = { id: string; name?: string; contextWindow?: number; reasoningEfforts?: Record<string, string | null> }
+const STANDARD_EFFORTS: Record<string, string | null> = { off: null, low: 'low', medium: 'medium', high: 'high' }
 type ProviderEntry = { apiKeyEnv?: string; baseURL?: string; displayName?: string; api?: string; models?: ModelEntry[] }
 type Discovered = { id: string; name?: string; contextWindow?: number }
 
@@ -53,10 +54,18 @@ function ModelPicker({ discover, initial, onChange }: {
   const [error, setError] = useState('')
   const [manual, setManual] = useState('')
   const [filter, setFilter] = useState('')
+  const [efforts, setEfforts] = useState(() => initial.some(m => m.reasoningEfforts))
 
+  const emit = (next: Map<string, ModelEntry>, on: boolean) => {
+    onChange([...next.values()].map(m => {
+      const { reasoningEfforts: _drop, ...rest } = m
+      void _drop
+      return on ? { ...rest, reasoningEfforts: m.reasoningEfforts ?? STANDARD_EFFORTS } : rest
+    }))
+  }
   const update = (next: Map<string, ModelEntry>) => {
     setChosen(next)
-    onChange([...next.values()])
+    emit(next, efforts)
   }
   const fetchList = async () => {
     setBusy(true)
@@ -127,6 +136,10 @@ function ModelPicker({ discover, initial, onChange }: {
           </div>
         </div>
       )}
+      <label className="flex items-center gap-2 px-0.5 text-xs text-muted-foreground">
+        <input type="checkbox" checked={efforts} onChange={e => { setEfforts(e.target.checked); emit(chosen, e.target.checked) }} className="size-4 accent-current" />
+        思考レベル（オフ / low / medium / high）を切り替えられるようにする
+      </label>
       <div className="flex gap-1.5">
         <Input value={manual} onChange={e => setManual(e.target.value)} placeholder="モデル ID を直接追加（複数はカンマ区切り）" className="h-9 text-sm" autoCapitalize="none"
           onKeyDown={e => { if (e.key === 'Enter') addManual() }} />
