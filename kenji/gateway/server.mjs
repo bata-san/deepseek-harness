@@ -527,7 +527,8 @@ const server = http.createServer(async (req, res) => {
   try {
     const url = req.url ?? '/'
     const { rel: rawRel, prefixed } = relativePath(url)
-    if (BASE && prefixed && url.split('?')[0] === BASE) {
+    // `/harness*` はトンネルのパス指定をそのまま URL に写した入力。ログイン後に /harness/harness* へ飛ばないよう /harness/ に寄せる
+    if (BASE && (url.split('?')[0] === BASE || url.split('?')[0] === `${BASE}*`)) {
       res.writeHead(301, { location: `${BASE}/` })
       return res.end()
     }
