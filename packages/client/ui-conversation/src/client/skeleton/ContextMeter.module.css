@@ -220,3 +220,10 @@
   align-self: safe start;
   justify-self: safe end;
 }
+
+/* Touch: the context meter opens its breakdown from a 32px target. */
+@media (pointer: coarse) {
+  .trigger {
+    padding: 6px 10px;
+  }
+}

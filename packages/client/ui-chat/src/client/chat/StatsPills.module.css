@@ -61,3 +61,10 @@ button.pill[aria-expanded='true'] {
   color: var(--dsw-alias-separator-primary);
   margin: 0 6px;
 }
+
+/* Touch: session statistics pills open their details from a 32px target. */
+@media (pointer: coarse) {
+  .pill {
+    padding: 6px 10px;
+  }
+}

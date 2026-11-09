@@ -113,3 +113,10 @@ button.leading {
     transition: none;
   }
 }
+
+/* Touch: tool and process rows reach a 36px tap height; fine pointers keep 24px. */
+@media (pointer: coarse) {
+  .row {
+    height: calc(36px + var(--dsh-content-font-delta, 0px));
+  }
+}

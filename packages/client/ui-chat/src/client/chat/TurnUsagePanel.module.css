@@ -77,3 +77,11 @@
     margin-left: 0;
   }
 }
+
+/* Touch: the turn-usage trigger reaches 36px; fine pointers keep 28px. */
+@media (pointer: coarse) {
+  .trigger {
+    height: calc(36px + var(--dsh-content-font-delta, 0px));
+    min-width: 36px;
+  }
+}
