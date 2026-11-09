@@ -1,12 +1,16 @@
 # Kenji Harness: fetch and build on Windows.
 # Meant to run as a Kenji job (SYSTEM or the service account).
 # Keep this file ASCII-only: Windows PowerShell 5.1 reads BOM-less files as ANSI.
-#   powershell -NoProfile -ExecutionPolicy Bypass -File build-windows.ps1 [-Branch kenji-clean] [-SkipCore]
+#   powershell -NoProfile -ExecutionPolicy Bypass -File build-windows.ps1 [-Branch kenji-clean] [-SkipCore] [-IfChanged]
+# -IfChanged: exit early when the remote branch has no new commit (used by the scheduled auto-update job).
+# After a successful build the script touches <Root>\restart-request; the gateway restarts the harness
+# when no session is running.
 param(
   [string]$Root = 'C:\ProgramData\kenji\harness',
   [string]$Repo = 'https://github.com/bata-san/deepseek-harness',
   [string]$Branch = 'kenji-clean',
-  [switch]$SkipCore
+  [switch]$SkipCore,
+  [switch]$IfChanged
 )
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
@@ -28,8 +32,16 @@ function Step($name, [scriptblock]$block) {
   Write-Host ("<== {0} ({1:n0}s)" -f $name, $sw.Elapsed.TotalSeconds)
 }
 
+git config --global core.longpaths true
+if ($IfChanged -and (Test-Path (Join-Path $src '.git'))) {
+  git -C $src fetch --depth 1 origin $Branch 2>&1 | Out-Null
+  $local = (git -C $src rev-parse HEAD).Trim()
+  $remote = (git -C $src rev-parse FETCH_HEAD).Trim()
+  if ($local -eq $remote) { Write-Host "up to date: $local"; exit 0 }
+  Write-Host "update available: $local -> $remote"
+}
+
 Step 'git checkout' {
-  git config --global core.longpaths true
   if (-not (Test-Path (Join-Path $src '.git'))) {
     git clone --depth 1 --branch $Branch $Repo $src
   } else {
@@ -37,6 +49,8 @@ Step 'git checkout' {
     git -C $src reset --hard FETCH_HEAD
   }
   git -C $src log -1 --format='%h %s'
+  # Keep the scheduled entry point in sync with the checked-out script.
+  Copy-Item (Join-Path $src 'kenji\scripts\build-windows.ps1') (Join-Path $Root 'build.ps1') -Force
 }
 
 Step 'corepack pnpm' {
@@ -50,10 +64,5 @@ if (-not $SkipCore) {
   Step 'build artifacts' { pnpm run build:artifacts }
 }
 
-$mobile = Join-Path $src 'kenji\mobile'
-if (Test-Path (Join-Path $mobile 'package.json')) {
-  Set-Location $mobile
-  Step 'mobile install' { npm ci --no-audit --no-fund }
-  Step 'mobile build' { npm run build }
-}
+Set-Content -Path (Join-Path $Root 'restart-request') -Value (git -C $src rev-parse HEAD).Trim() -Encoding ASCII
 Write-Host 'BUILD OK'

@@ -23,7 +23,7 @@
 //   EXTRA_PATH     dsh の PATH の先頭に足すディレクトリ（; 区切り）。プラグイン管理が使う pnpm / git の場所
 //   PUBLIC_URL     公開 URL（例: https://example.ngrok-free.dev/harness/）。dsh が案内する Web UI の URL に使う
 import { spawn } from 'node:child_process'
-import { existsSync, mkdirSync } from 'node:fs'
+import { createReadStream, existsSync, mkdirSync, statSync } from 'node:fs'
 import http from 'node:http'
 import net from 'node:net'
 import path from 'node:path'
@@ -388,6 +388,16 @@ const next=new URLSearchParams(location.search).get('next');location.replace(nex
 catch(x){e.textContent=x.message;b.disabled=false}})
 </script></main></body></html>`
 
+// Android アプリの更新配信（APK は公開して問題ない成果物なのでログイン不要）
+const APP_DIR = path.join(ROOT, 'kenji', 'android', 'dist')
+function serveApp(res, name) {
+  const file = path.join(APP_DIR, name)
+  if (!existsSync(file)) return sendJson(res, 404, { error: 'not found' })
+  const type = name.endsWith('.apk') ? 'application/vnd.android.package-archive' : 'application/json; charset=utf-8'
+  res.writeHead(200, { 'content-type': type, 'cache-control': 'no-cache', 'content-length': statSync(file).size })
+  createReadStream(file).pipe(res)
+}
+
 function sendLogin(res) {
   res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' })
   res.end(LOGIN_HTML)
@@ -430,6 +440,7 @@ const server = http.createServer(async (req, res) => {
     }
     const rel = rawRel
     if (rel === '/healthz') return sendJson(res, 200, { ok: true, harness: dsh.ready })
+    if (rel === '/app/version.json' || rel === '/app/kenji-harness.apk') return serveApp(res, rel.slice('/app/'.length))
     if (rel === '/login') return sendLogin(res)
     if (rel === '/logout') {
       const token = parseCookies(req.headers.cookie)[SESSION_COOKIE]
@@ -473,16 +484,56 @@ server.on('upgrade', async (req, socket, head) => {
 })
 
 let shuttingDown = false
-function shutdown() {
+function shutdown(exitCode = 0) {
   if (shuttingDown) return
   shuttingDown = true
-  log('shutting down')
+  log(`shutting down (exit ${exitCode})`)
   server.close()
   if (dsh.child) dsh.child.kill()
-  setTimeout(() => process.exit(0), 3000).unref()
+  setTimeout(() => process.exit(exitCode), 3000).unref()
 }
-process.on('SIGINT', shutdown)
-process.on('SIGTERM', shutdown)
+
+// ---------------------------------------------------------------------------
+// 自動更新: ビルドスクリプトが restart-request を更新したら、実行中のセッションが
+// なくなるのを待ってから終了コード 75 で終わる（Kenji のジョブが on_failure で再起動する）
+// ---------------------------------------------------------------------------
+const RESTART_FILE = process.env.RESTART_REQUEST ?? path.join(path.dirname(ROOT), 'restart-request')
+const RESTART_EXIT_CODE = 75
+const RESTART_MAX_WAIT_MS = 2 * 60 * 60 * 1000
+
+function restartStamp() {
+  try { return statSync(RESTART_FILE).mtimeMs } catch { return 0 }
+}
+
+async function anySessionRunning() {
+  if (!dsh.ready) return false
+  try {
+    const response = await fetch(`http://127.0.0.1:${DSH_PORT}/api/session/list`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie: dsh.cookie ?? '' },
+      body: JSON.stringify({ type: 'client-request', rpcId: `restart-${Date.now()}`, method: 'session/list', payload: { args: { _request: {} } } }),
+    })
+    const body = await response.json()
+    return Boolean(body?.result?.value?.items?.some(item => item.running))
+  } catch (error) {
+    log('could not read session state before restart:', error.message)
+    return false
+  }
+}
+
+const startStamp = restartStamp()
+let restartSince = 0
+setInterval(async () => {
+  if (shuttingDown || restartStamp() <= startStamp) return
+  if (!restartSince) {
+    restartSince = Date.now()
+    log('update installed; restarting once no session is running')
+  }
+  if (await anySessionRunning() && Date.now() - restartSince < RESTART_MAX_WAIT_MS) return
+  shutdown(RESTART_EXIT_CODE)
+}, 20_000).unref()
+process.on('SIGINT', () => shutdown(0))
+process.on('SIGTERM', () => shutdown(0))
 
 server.listen(PORT, HOST, () => {
   log(`listening on http://${HOST}:${PORT}${BASE}/ (harness root: ${ROOT})`)

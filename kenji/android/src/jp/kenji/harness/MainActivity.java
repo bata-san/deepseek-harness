@@ -3,14 +3,21 @@ package jp.kenji.harness;
 import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.app.DownloadManager;
 import android.content.ActivityNotFoundException;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
+import android.provider.Settings;
 import android.text.InputType;
 import android.view.View;
 import android.view.Window;
@@ -27,6 +34,15 @@ import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ProgressBar;
 
+import org.json.JSONObject;
+
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.security.MessageDigest;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -50,6 +66,11 @@ public class MainActivity extends Activity {
     private ValueCallback<Uri[]> fileCallback;
     private PermissionRequest pendingPermission;
     private boolean showingError;
+    private static final long UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000L;
+    private long lastUpdateCheck;
+    private JSONObject pendingUpdate;
+    private long downloadId = -1;
+    private BroadcastReceiver downloadReceiver;
 
     @Override
     protected void onCreate(Bundle state) {
@@ -85,6 +106,155 @@ public class MainActivity extends Activity {
         web.setWebChromeClient(new HarnessChrome());
         if (state != null) web.restoreState(state);
         else load(serverUrl());
+        checkForUpdate();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (pendingUpdate != null && canInstall()) {
+            JSONObject update = pendingUpdate;
+            pendingUpdate = null;
+            downloadUpdate(update);
+        } else if (System.currentTimeMillis() - lastUpdateCheck > UPDATE_CHECK_INTERVAL_MS) {
+            checkForUpdate();
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (downloadReceiver != null) unregisterReceiver(downloadReceiver);
+        super.onDestroy();
+    }
+
+    // ---- self-update: <server>/app/version.json lists the newest APK published by the gateway ----
+
+    private long installedVersionCode() {
+        try {
+            return getPackageManager().getPackageInfo(getPackageName(), 0).getLongVersionCode();
+        } catch (PackageManager.NameNotFoundException e) {
+            return Long.MAX_VALUE;
+        }
+    }
+
+    private void checkForUpdate() {
+        lastUpdateCheck = System.currentTimeMillis();
+        final String url = serverUrl() + "app/version.json";
+        new Thread(() -> {
+            try {
+                HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
+                c.setConnectTimeout(8000);
+                c.setReadTimeout(8000);
+                c.setRequestProperty("ngrok-skip-browser-warning", "1");
+                if (c.getResponseCode() != 200) return;
+                ByteArrayOutputStream buf = new ByteArrayOutputStream();
+                try (InputStream in = c.getInputStream()) {
+                    byte[] b = new byte[4096];
+                    for (int n; (n = in.read(b)) > 0; ) buf.write(b, 0, n);
+                }
+                final JSONObject info = new JSONObject(buf.toString("UTF-8"));
+                if (info.optLong("versionCode", 0) > installedVersionCode()) runOnUiThread(() -> offerUpdate(info));
+            } catch (Exception ignored) {
+                // Update checks are best effort; the next launch or resume retries.
+            }
+        }).start();
+    }
+
+    private void offerUpdate(JSONObject info) {
+        if (isFinishing()) return;
+        String notes = info.optString("notes", "");
+        new AlertDialog.Builder(this)
+            .setTitle("アップデートがあります")
+            .setMessage("バージョン " + info.optString("versionName", "?") + " に更新できます。" + (notes.isEmpty() ? "" : "\n\n" + notes))
+            .setPositiveButton("更新する", (d, w) -> startUpdate(info))
+            .setNegativeButton("あとで", null)
+            .show();
+    }
+
+    private boolean canInstall() {
+        return getPackageManager().canRequestPackageInstalls();
+    }
+
+    private void startUpdate(JSONObject info) {
+        if (canInstall()) {
+            downloadUpdate(info);
+            return;
+        }
+        pendingUpdate = info;
+        new AlertDialog.Builder(this)
+            .setTitle("インストールの許可")
+            .setMessage("更新をインストールするには、このアプリに「不明なアプリのインストール」を許可してください。許可して戻ると更新を続けます。")
+            .setPositiveButton("設定を開く", (d, w) -> {
+                try {
+                    startActivity(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:" + getPackageName())));
+                } catch (ActivityNotFoundException e) {
+                    pendingUpdate = null;
+                }
+            })
+            .setNegativeButton("キャンセル", (d, w) -> pendingUpdate = null)
+            .show();
+    }
+
+    private void downloadUpdate(final JSONObject info) {
+        final String name = "kenji-harness-" + info.optLong("versionCode") + ".apk";
+        final File target = new File(getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), name);
+        if (target.exists()) target.delete();
+        DownloadManager dm = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
+        DownloadManager.Request request = new DownloadManager.Request(Uri.parse(serverUrl() + "app/kenji-harness.apk"))
+            .addRequestHeader("ngrok-skip-browser-warning", "1")
+            .setTitle("Harness の更新")
+            .setMimeType("application/vnd.android.package-archive")
+            .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE)
+            .setDestinationInExternalFilesDir(this, Environment.DIRECTORY_DOWNLOADS, name);
+        if (downloadReceiver == null) {
+            downloadReceiver = new BroadcastReceiver() {
+                @Override
+                public void onReceive(Context context, Intent intent) {
+                    long id = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1);
+                    if (id != downloadId) return;
+                    installDownloaded(id, target, info.optString("sha256", ""));
+                }
+            };
+            IntentFilter filter = new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE);
+            if (Build.VERSION.SDK_INT >= 33) registerReceiver(downloadReceiver, filter, Context.RECEIVER_EXPORTED);
+            else registerReceiver(downloadReceiver, filter);
+        }
+        downloadId = dm.enqueue(request);
+    }
+
+    private void installDownloaded(long id, File file, String expectedSha256) {
+        DownloadManager dm = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
+        Uri uri = dm.getUriForDownloadedFile(id);
+        if (uri == null || !file.exists()) {
+            new AlertDialog.Builder(this).setMessage("更新をダウンロードできませんでした。あとでもう一度お試しください。").setPositiveButton("OK", null).show();
+            return;
+        }
+        if (!expectedSha256.isEmpty() && !expectedSha256.equalsIgnoreCase(sha256(file))) {
+            file.delete();
+            new AlertDialog.Builder(this).setMessage("ダウンロードした更新ファイルの検証に失敗したため、インストールを中止しました。").setPositiveButton("OK", null).show();
+            return;
+        }
+        Intent install = new Intent(Intent.ACTION_VIEW)
+            .setDataAndType(uri, "application/vnd.android.package-archive")
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
+        try {
+            startActivity(install);
+        } catch (ActivityNotFoundException e) {
+            new AlertDialog.Builder(this).setMessage("インストーラーを開けませんでした。").setPositiveButton("OK", null).show();
+        }
+    }
+
+    private static String sha256(File file) {
+        try (InputStream in = new FileInputStream(file)) {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            byte[] b = new byte[8192];
+            for (int n; (n = in.read(b)) > 0; ) md.update(b, 0, n);
+            StringBuilder hex = new StringBuilder();
+            for (byte x : md.digest()) hex.append(String.format("%02x", x));
+            return hex.toString();
+        } catch (Exception e) {
+            return "";
+        }
     }
 
     private String serverUrl() {
@@ -110,6 +280,37 @@ public class MainActivity extends Activity {
         } catch (ActivityNotFoundException ignored) {
             // No app can open this link; staying on the current page is the only option.
         }
+    }
+
+    private void checkForUpdateManually() {
+        final long current = installedVersionCode();
+        final String url = serverUrl() + "app/version.json";
+        new Thread(() -> {
+            JSONObject info = null;
+            try {
+                HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
+                c.setConnectTimeout(8000);
+                c.setReadTimeout(8000);
+                c.setRequestProperty("ngrok-skip-browser-warning", "1");
+                if (c.getResponseCode() == 200) {
+                    ByteArrayOutputStream buf = new ByteArrayOutputStream();
+                    try (InputStream in = c.getInputStream()) {
+                        byte[] b = new byte[4096];
+                        for (int n; (n = in.read(b)) > 0; ) buf.write(b, 0, n);
+                    }
+                    info = new JSONObject(buf.toString("UTF-8"));
+                }
+            } catch (Exception ignored) {
+                // Reported below as "could not check".
+            }
+            final JSONObject result = info;
+            runOnUiThread(() -> {
+                if (result != null && result.optLong("versionCode", 0) > current) offerUpdate(result);
+                else new AlertDialog.Builder(this)
+                    .setMessage(result == null ? "更新を確認できませんでした。" : "最新のバージョンです。")
+                    .setPositiveButton("OK", null).show();
+            });
+        }).start();
     }
 
     private void askServerUrl() {
@@ -138,12 +339,13 @@ public class MainActivity extends Activity {
     }
 
     private void showMenu() {
-        String[] items = {"再読み込み", "接続先 URL を変更", "ログアウト", "アプリを閉じる"};
+        String[] items = {"再読み込み", "接続先 URL を変更", "アップデートを確認", "ログアウト", "アプリを閉じる"};
         new AlertDialog.Builder(this)
             .setItems(items, (d, which) -> {
                 if (which == 0) load(showingError ? serverUrl() : web.getUrl() != null ? web.getUrl() : serverUrl());
                 else if (which == 1) askServerUrl();
-                else if (which == 2) load(serverUrl() + "logout");
+                else if (which == 2) checkForUpdateManually();
+                else if (which == 3) load(serverUrl() + "logout");
                 else finish();
             })
             .show();
