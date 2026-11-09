@@ -79,11 +79,13 @@
     - id: session-turn-outline
       name: '@deepseek-ai/dsh-session-turn-outline'
 
-    # Resolve bind host, SSH launch, and display once at boot, then mount the
-    # matching dual-face directory picker. Mount -native or -browse directly in
-    # an overlay to pin the interaction.
-    - id: directory-picker
-      name: '@deepseek-ai/dsh-host-directory-picker-auto'
+    # Pinned to the in-browser picker: the auto resolver chooses the native OS
+    # chooser on a loopback bind with a display, which opens on the host desktop
+    # and is unreachable from a phone or a remote browser behind the gateway.
+    - id: directory-picker-browse
+      name: '@deepseek-ai/dsh-host-directory-picker-browse'
+    - id: ui-directory-picker-browse
+      name: '@deepseek-ai/dsh-client-ui-directory-picker-browse'
 
     # Read-only projection of current Loader entries for trusted client RPCs.
     - id: plugin-inventory
