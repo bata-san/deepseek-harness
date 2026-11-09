@@ -3,6 +3,7 @@
 # Keep this file ASCII-only: Windows PowerShell 5.1 reads BOM-less files as ANSI.
 #   powershell -NoProfile -ExecutionPolicy Bypass -File build-windows.ps1 [-Branch kenji-clean] [-SkipCore] [-IfChanged]
 # -IfChanged: exit early when the remote branch has no new commit (used by the scheduled auto-update job).
+# Re-applies <Root>\purge.ps1 apply when that local file exists.
 # After a successful build the script touches <Root>\restart-request; the gateway restarts the harness
 # when no session is running.
 param(
@@ -62,6 +63,18 @@ Set-Location $src
 if (-not $SkipCore) {
   Step 'pnpm install' { pnpm install --frozen-lockfile }
   Step 'build artifacts' { pnpm run build:artifacts }
+}
+
+# Optional local hook: re-apply the dsh-purge patches that a rebuild overwrites.
+# <Root>\purge.ps1 is machine-local (it sets DSH_HOME / PURGE_DSH_CLI); skipped when absent.
+$purge = Join-Path $Root 'purge.ps1'
+if (-not $SkipCore -and (Test-Path $purge)) {
+  try {
+    Write-Host '==> purge apply'
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $purge apply | Out-Host
+  } catch {
+    Write-Host ('purge apply failed (build continues): ' + $_.Exception.Message)
+  }
 }
 
 Set-Content -Path (Join-Path $Root 'restart-request') -Value (git -C $src rev-parse HEAD).Trim() -Encoding ASCII
