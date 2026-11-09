@@ -488,6 +488,9 @@ function shutdown(exitCode = 0) {
   if (shuttingDown) return
   shuttingDown = true
   log(`shutting down (exit ${exitCode})`)
+  // The process may end on its own once the server and child are gone; exitCode keeps the
+  // status (75 = restart for an update) even when the timer below never fires.
+  process.exitCode = exitCode
   server.close()
   if (dsh.child) dsh.child.kill()
   setTimeout(() => process.exit(exitCode), 3000).unref()
