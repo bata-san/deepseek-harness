@@ -82,3 +82,11 @@
   align-items: center;
   justify-content: center;
 }
+
+/* Touch: compact buttons keep their look but reach a 36px hit size; fine pointers keep 28px. */
+@media (pointer: coarse) {
+  .sm {
+    height: 36px;
+    min-width: 36px;
+  }
+}

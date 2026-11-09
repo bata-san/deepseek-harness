@@ -489,3 +489,21 @@
     transition: none;
   }
 }
+
+/* Touch: taller Workspace and Session rows with larger per-row action buttons; fine pointers keep 32px rows. */
+@media (pointer: coarse) {
+  .projectRow,
+  .sessionRow {
+    height: 44px;
+  }
+
+  .projectRow .rowActions {
+    height: 36px;
+  }
+
+  .iconButton {
+    width: 36px;
+    height: 36px;
+    margin: -6px;
+  }
+}

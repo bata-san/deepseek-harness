@@ -29,3 +29,11 @@
     background: var(--dsw-alias-interactive-bg-hover);
   }
 }
+
+/* Touch: 40px targets for the header toggles; fine pointers keep the compact 28px chrome. */
+@media (pointer: coarse) {
+  .iconButton {
+    width: 40px;
+    height: 40px;
+  }
+}

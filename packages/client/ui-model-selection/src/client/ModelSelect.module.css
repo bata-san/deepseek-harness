@@ -388,3 +388,10 @@
   height: 12px;
   color: var(--dsw-alias-menu-icon);
 }
+
+/* Touch: the composer model chip reaches a 40px hit height. */
+@media (pointer: coarse) {
+  .trigger {
+    height: 40px;
+  }
+}

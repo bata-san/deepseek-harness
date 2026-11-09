@@ -100,3 +100,10 @@
 .chevronOpen {
   transform: rotate(180deg);
 }
+
+/* Touch: the composer access-mode chip reaches a 40px hit height. */
+@media (pointer: coarse) {
+  .trigger {
+    height: 40px;
+  }
+}

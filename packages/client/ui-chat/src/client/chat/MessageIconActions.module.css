@@ -114,3 +114,12 @@
   clip: rect(0 0 0 0);
   white-space: nowrap;
 }
+
+/* Touch: message actions (copy, branch, ...) grow to 40px; fine pointers keep 28px. */
+@media (pointer: coarse) {
+  .action {
+    width: calc(40px + var(--dsh-content-font-delta, 0px));
+    height: calc(40px + var(--dsh-content-font-delta, 0px));
+    padding: 10px;
+  }
+}

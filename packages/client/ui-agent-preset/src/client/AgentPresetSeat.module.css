@@ -142,3 +142,10 @@
   color: var(--dsw-alias-label-caption);
   white-space: normal;
 }
+
+/* Touch: the agent-preset seat reaches a 40px hit height. */
+@media (pointer: coarse) {
+  .seat {
+    min-height: 40px;
+  }
+}

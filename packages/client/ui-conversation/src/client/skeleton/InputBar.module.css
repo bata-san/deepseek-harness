@@ -470,3 +470,16 @@
 .activity { display: flex; align-items: center; flex: none; }
 .activity:empty { display: none; }
 .activityExpanded { flex: 1; min-width: 0; }
+
+/* Touch: composer add and send buttons sized for thumbs; fine pointers keep 28px and 34px. */
+@media (pointer: coarse) {
+  .add {
+    width: 40px;
+    height: 40px;
+  }
+
+  .primary {
+    width: 40px;
+    height: 40px;
+  }
+}

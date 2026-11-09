@@ -235,3 +235,10 @@
   line-height: 18px;
   color: var(--dsw-alias-state-error-primary);
 }
+
+/* Touch: the start-screen workspace selector reaches a 40px hit height. */
+@media (pointer: coarse) {
+  .workspace {
+    min-height: 40px;
+  }
+}

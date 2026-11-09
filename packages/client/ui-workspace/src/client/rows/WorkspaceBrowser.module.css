@@ -647,3 +647,17 @@
     transition: none;
   }
 }
+
+/* Touch: header actions and the overflow row reach finger size; fine pointers keep the compact header. */
+@media (pointer: coarse) {
+  .searchButton,
+  .iconButton {
+    width: 40px;
+    height: 40px;
+  }
+
+  .sessionOverflowButton {
+    height: 40px;
+    font-size: 13px;
+  }
+}

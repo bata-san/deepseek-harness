@@ -645,3 +645,16 @@
 .embeddedBody[data-content-phase='settling'] .composerSeat {
   visibility: hidden;
 }
+
+/* Touch: conversation tabs get a 44px hit height and the More launcher a 36px box; fine pointers keep 35px and 22px. */
+@media (pointer: coarse) {
+  .tab {
+    min-height: 44px;
+  }
+
+  .viewsMore {
+    width: 36px;
+    height: 36px;
+    margin-top: -10px;
+  }
+}

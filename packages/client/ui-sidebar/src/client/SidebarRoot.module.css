@@ -819,3 +819,21 @@
     animation: none;
   }
 }
+
+/* Touch: sidebar rows and icon buttons grow to finger-sized targets; fine pointers keep the dense layout. */
+@media (pointer: coarse) {
+  .iconButton,
+  .panelUnpin {
+    width: 40px;
+    height: 40px;
+  }
+
+  .panelRow {
+    min-height: 44px;
+    font-size: 15px;
+  }
+
+  .newSession {
+    height: 44px;
+  }
+}

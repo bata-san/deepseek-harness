@@ -6,7 +6,7 @@
 //   - Kenji のアカウント（operator 以上）でログインさせ、HttpOnly Cookie でセッションを保つ
 //   - 認証済みリクエストだけを dsh の /api と /api/remote.mux（WebSocket）へ中継する
 //     （dsh の起動トークン／Cookie はサーバー側だけで保持し、ブラウザには渡さない）
-//   - スマホ版 UI（kenji/mobile/dist）を配信し、従来の PC 版 UI を /full/ 配下で中継する
+//   - 未ログインならログイン画面を返し、ログイン後は dsh の Web UI（スマホ対応）をそのまま中継する
 //
 // 環境変数（すべて任意）:
 //   HARNESS_ROOT   リポジトリのルート（既定: このファイルの 2 つ上）
@@ -21,9 +21,9 @@
 //   WORKSPACE_ROOT ユーザーごとの作業フォルダの親（例: C:\ProgramData\kenji\workspace）。
 //                  新しいセッションは <WORKSPACE_ROOT>\<ユーザー名> で始まる
 //   EXTRA_PATH     dsh の PATH の先頭に足すディレクトリ（; 区切り）。プラグイン管理が使う pnpm / git の場所
-//   PUBLIC_URL     公開 URL（例: https://example.ngrok-free.dev/harness/）。PC 版 UI の案内 URL に使う
+//   PUBLIC_URL     公開 URL（例: https://example.ngrok-free.dev/harness/）。dsh が案内する Web UI の URL に使う
 import { spawn } from 'node:child_process'
-import { createReadStream, existsSync, mkdirSync, statSync } from 'node:fs'
+import { existsSync, mkdirSync } from 'node:fs'
 import http from 'node:http'
 import net from 'node:net'
 import path from 'node:path'
@@ -38,7 +38,6 @@ const KENJI = (process.env.KENJI_URL ?? 'http://127.0.0.1:8787').replace(/\/+$/,
 const DSH_PORT = Number(process.env.DSH_PORT ?? 3080)
 const ROLE_RANK = { viewer: 0, operator: 1, admin: 2 }
 const MIN_ROLE = ROLE_RANK[process.env.MIN_ROLE ?? 'operator'] ?? 1
-const STATIC_DIR = path.join(ROOT, 'kenji', 'mobile', 'dist')
 const SESSION_COOKIE = 'kh_session'
 const WORKSPACE_ROOT = process.env.WORKSPACE_ROOT ? path.resolve(process.env.WORKSPACE_ROOT) : ''
 const PUBLIC_URL = (process.env.PUBLIC_URL ?? '').trim()
@@ -87,7 +86,7 @@ function dshEntry() {
 function startDsh() {
   const extra = (process.env.DSH_EXTRA_ARGS ?? '').split(/\s+/).filter(Boolean)
   const args = [...dshEntry(), 'web', '--no-open', '--host', '127.0.0.1', '--port', String(DSH_PORT),
-    ...(PUBLIC_URL ? ['--public-url', new URL('full/', PUBLIC_URL.endsWith('/') ? PUBLIC_URL : `${PUBLIC_URL}/`).href] : []), ...extra]
+    ...(PUBLIC_URL ? ['--public-url', PUBLIC_URL.endsWith('/') ? PUBLIC_URL : `${PUBLIC_URL}/`] : []), ...extra]
   log('starting dsh:', process.execPath, args.join(' '))
   dsh.ready = false
   dsh.token = null
@@ -321,7 +320,7 @@ function proxyHttp(req, res, upstreamPath) {
       const lower = key.toLowerCase()
       if (HOP_HEADERS.has(lower) || lower === 'set-cookie') continue
       if (lower === 'location' && typeof value === 'string' && value.startsWith('/')) {
-        headers[lower] = `${BASE}/full${value}`
+        headers[lower] = `${BASE}${value}`
         continue
       }
       headers[lower] = value
@@ -353,30 +352,49 @@ function proxyUpgrade(req, socket, head, upstreamPath) {
 }
 
 // ---------------------------------------------------------------------------
-// 静的配信（スマホ版 UI）
+// ログイン画面（Kenji アカウント）。認証後は dsh の Web UI をそのまま中継する
 // ---------------------------------------------------------------------------
-const MIME = {
-  '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
-  '.json': 'application/json', '.webmanifest': 'application/manifest+json', '.svg': 'image/svg+xml', '.png': 'image/png',
-  '.ico': 'image/x-icon', '.woff2': 'font/woff2', '.txt': 'text/plain; charset=utf-8',
+const LOGIN_HTML = `<!doctype html>
+<html lang="ja"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#151517" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<title>Harness にログイン</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;600&display=swap">
+<style>
+:root{--bg:#fff;--fg:#18181b;--muted:#71717a;--line:#e4e4e7;--card:#fff;--btn:#18181b;--btnfg:#fff;--err:#dc2626}
+@media(prefers-color-scheme:dark){:root{--bg:#151517;--fg:#f4f4f5;--muted:#a1a1aa;--line:#2e2e33;--card:#1d1d20;--btn:#f4f4f5;--btnfg:#151517;--err:#f87171}}
+*{box-sizing:border-box}html,body{height:100%}body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.6 "IBM Plex Sans JP",system-ui,sans-serif;display:flex;align-items:center;justify-content:center;padding:24px}
+main{width:100%;max-width:360px}h1{font-size:22px;margin:0 0 4px;font-weight:600}p{margin:0 0 24px;color:var(--muted);font-size:14px}
+label{display:block;font-size:13px;color:var(--muted);margin:14px 0 6px}
+input{width:100%;height:48px;border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--fg);padding:0 14px;font:inherit;font-size:16px;outline:none}
+input:focus{border-color:var(--muted)}
+button{margin-top:24px;width:100%;height:50px;border:0;border-radius:999px;background:var(--btn);color:var(--btnfg);font:inherit;font-size:16px;font-weight:600}
+button:disabled{opacity:.5}.err{color:var(--err);font-size:14px;margin-top:14px;min-height:1.5em}
+</style></head><body><main>
+<h1>Harness</h1><p>Kenji のアカウントでログインしてください（operator 以上）。</p>
+<form id="f"><label for="u">ユーザー名</label><input id="u" autocomplete="username" autocapitalize="none" autocorrect="off" required>
+<label for="pw">パスワード</label><input id="pw" type="password" autocomplete="current-password" required>
+<button id="b" type="submit">ログイン</button><div class="err" id="e" role="alert"></div></form>
+<script>
+const f=document.getElementById('f'),b=document.getElementById('b'),e=document.getElementById('e'),u=document.getElementById('u')
+try{u.value=localStorage.getItem('kh.lastUser')||''}catch{}
+f.addEventListener('submit',async ev=>{ev.preventDefault();b.disabled=true;e.textContent=''
+try{const r=await fetch('auth/login',{method:'POST',headers:{'content-type':'application/json'},credentials:'same-origin',body:JSON.stringify({username:u.value.trim(),password:document.getElementById('pw').value})})
+const v=await r.json().catch(()=>({}));if(!r.ok)throw new Error(v.error||'ログインできませんでした')
+try{localStorage.setItem('kh.lastUser',u.value.trim())}catch{}
+const next=new URLSearchParams(location.search).get('next');location.replace(next&&next.startsWith('./')?next:'./')}
+catch(x){e.textContent=x.message;b.disabled=false}})
+</script></main></body></html>`
+
+function sendLogin(res) {
+  res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' })
+  res.end(LOGIN_HTML)
 }
 
-function serveStatic(req, res, rel) {
-  let file = path.normalize(path.join(STATIC_DIR, decodeURIComponent(rel)))
-  if (!file.startsWith(STATIC_DIR)) return sendJson(res, 400, { error: 'bad path' })
-  if (!existsSync(file) || statSync(file).isDirectory()) file = path.join(STATIC_DIR, 'index.html')
-  if (!existsSync(file)) {
-    res.writeHead(503, { 'content-type': 'text/plain; charset=utf-8' })
-    return res.end('スマホ版 UI がビルドされていません（kenji/mobile で npm run build を実行してください）')
-  }
-  const ext = path.extname(file)
-  const immutable = file.includes(`${path.sep}assets${path.sep}`)
-  res.writeHead(200, {
-    'content-type': MIME[ext] ?? 'application/octet-stream',
-    'cache-control': immutable ? 'public, max-age=31536000, immutable' : 'no-cache',
-    'x-content-type-options': 'nosniff',
-  })
-  createReadStream(file).pipe(res)
+function wantsHtml(req) {
+  return req.method === 'GET' && String(req.headers.accept ?? '').includes('text/html')
 }
 
 // ---------------------------------------------------------------------------
@@ -393,32 +411,45 @@ function queryOf(url) {
   return index < 0 ? '' : url.slice(index)
 }
 
+/** 旧スマホ版の /full/ 配下へのリンクは dsh 本体（ルート）に寄せる */
+function stripFull(rel) {
+  return rel === '/full' || rel.startsWith('/full/') ? rel.slice('/full'.length) || '/' : rel
+}
+
 const server = http.createServer(async (req, res) => {
   try {
     const url = req.url ?? '/'
-    const { rel, prefixed } = relativePath(url)
+    const { rel: rawRel, prefixed } = relativePath(url)
     if (BASE && prefixed && url.split('?')[0] === BASE) {
       res.writeHead(301, { location: `${BASE}/` })
       return res.end()
     }
+    if (rawRel === '/full' || rawRel.startsWith('/full/')) {
+      res.writeHead(301, { location: `${BASE}${stripFull(rawRel)}${queryOf(url)}` })
+      return res.end()
+    }
+    const rel = rawRel
     if (rel === '/healthz') return sendJson(res, 200, { ok: true, harness: dsh.ready })
+    if (rel === '/login') return sendLogin(res)
+    if (rel === '/logout') {
+      const token = parseCookies(req.headers.cookie)[SESSION_COOKIE]
+      if (token) authCache.delete(token)
+      res.writeHead(302, { location: `${BASE}/login`, 'set-cookie': sessionCookie(req, '', 0) })
+      return res.end()
+    }
     if (rel.startsWith('/auth/')) return await handleAuth(req, res, rel)
 
-    const isApi = rel === '/api' || rel.startsWith('/api/')
-    const isFull = rel === '/full' || rel.startsWith('/full/')
-    if (isApi || isFull) {
-      const user = await authenticate(req)
-      if (!user) return sendJson(res, 401, { error: 'unauthenticated' })
-      if (req.method !== 'GET' && req.method !== 'HEAD' && !sameOrigin(req)) return sendJson(res, 403, { error: 'cross-origin request refused' })
-      if (rel === '/full') {
-        res.writeHead(301, { location: `${BASE}/full/` })
+    const user = await authenticate(req)
+    if (!user) {
+      if (wantsHtml(req)) {
+        const next = `.${rel}${queryOf(url)}`
+        res.writeHead(302, { location: `${BASE}/login${rel === '/' ? '' : `?next=${encodeURIComponent(next)}`}`, 'cache-control': 'no-store' })
         return res.end()
       }
-      const upstreamPath = isFull ? rel.slice('/full'.length) || '/' : rel
-      // PC 版 UI 内の相対 API 呼び出し（/full/api/...）もそのまま /api/... へ
-      return proxyHttp(req, res, upstreamPath + queryOf(url))
+      return sendJson(res, 401, { error: 'unauthenticated' })
     }
-    return serveStatic(req, res, rel === '/' ? '/index.html' : rel)
+    if (req.method !== 'GET' && req.method !== 'HEAD' && !sameOrigin(req)) return sendJson(res, 403, { error: 'cross-origin request refused' })
+    return proxyHttp(req, res, rel + queryOf(url))
   } catch (error) {
     log('request failed:', error)
     if (!res.headersSent) sendJson(res, 500, { error: 'internal error' })
@@ -428,8 +459,7 @@ const server = http.createServer(async (req, res) => {
 
 server.on('upgrade', async (req, socket, head) => {
   const url = req.url ?? '/'
-  const { rel } = relativePath(url)
-  const target = rel.startsWith('/full/') ? rel.slice('/full'.length) : rel
+  const target = stripFull(relativePath(url).rel)
   if (target !== '/api/remote.mux' || !dsh.ready) {
     socket.end('HTTP/1.1 404 Not Found\r\n\r\n')
     return
