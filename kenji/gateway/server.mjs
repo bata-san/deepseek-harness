@@ -18,8 +18,11 @@
 //   DSH_PORT       dsh web のポート（既定: 3080）
 //   DSH_HOME       dsh のデータディレクトリ（未指定なら dsh の既定）
 //   DSH_EXTRA_ARGS dsh web に追加する引数（空白区切り）
+//   WORKSPACE_ROOT ユーザーごとの作業フォルダの親（例: C:\ProgramData\kenji\workspace）。
+//                  新しいセッションは <WORKSPACE_ROOT>\<ユーザー名> で始まる
+//   PUBLIC_URL     公開 URL（例: https://example.ngrok-free.dev/harness/）。PC 版 UI の案内 URL に使う
 import { spawn } from 'node:child_process'
-import { createReadStream, existsSync, statSync } from 'node:fs'
+import { createReadStream, existsSync, mkdirSync, statSync } from 'node:fs'
 import http from 'node:http'
 import net from 'node:net'
 import path from 'node:path'
@@ -36,6 +39,20 @@ const ROLE_RANK = { viewer: 0, operator: 1, admin: 2 }
 const MIN_ROLE = ROLE_RANK[process.env.MIN_ROLE ?? 'operator'] ?? 1
 const STATIC_DIR = path.join(ROOT, 'kenji', 'mobile', 'dist')
 const SESSION_COOKIE = 'kh_session'
+const WORKSPACE_ROOT = process.env.WORKSPACE_ROOT ? path.resolve(process.env.WORKSPACE_ROOT) : ''
+const PUBLIC_URL = (process.env.PUBLIC_URL ?? '').trim()
+
+/** Kenji ユーザーの作業フォルダ（Kenji 本体と同じ workspace/<ユーザー名>）。なければ作る */
+function userWorkspace(username) {
+  if (!WORKSPACE_ROOT || !/^[\w.@-]{1,64}$/.test(username) || username.startsWith('.')) return null
+  const dir = path.join(WORKSPACE_ROOT, username)
+  try {
+    mkdirSync(dir, { recursive: true })
+    return dir
+  } catch {
+    return null
+  }
+}
 
 function normalizeBase(value) {
   const trimmed = value.trim().replace(/\/+$/, '')
@@ -68,13 +85,16 @@ function dshEntry() {
 
 function startDsh() {
   const extra = (process.env.DSH_EXTRA_ARGS ?? '').split(/\s+/).filter(Boolean)
-  const args = [...dshEntry(), 'web', '--no-open', '--host', '127.0.0.1', '--port', String(DSH_PORT), ...extra]
+  const args = [...dshEntry(), 'web', '--no-open', '--host', '127.0.0.1', '--port', String(DSH_PORT),
+    ...(PUBLIC_URL ? ['--public-url', new URL('full/', PUBLIC_URL.endsWith('/') ? PUBLIC_URL : `${PUBLIC_URL}/`).href] : []), ...extra]
   log('starting dsh:', process.execPath, args.join(' '))
   dsh.ready = false
   dsh.token = null
   dsh.cookie = null
+  // 既定の作業フォルダはハーネス本体のソースではなく、ユーザー用ワークスペースの親にする
+  const cwd = WORKSPACE_ROOT && existsSync(WORKSPACE_ROOT) ? WORKSPACE_ROOT : ROOT
   const child = spawn(process.execPath, args, {
-    cwd: ROOT,
+    cwd,
     env: { ...process.env, DSH_TELEMETRY_DISABLED: '1', BROWSER: 'none' },
     stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,
@@ -244,7 +264,7 @@ async function handleAuth(req, res, rel) {
       return sendJson(res, 403, { error: 'このアカウントにはハーネスの利用権限がありません（operator 以上が必要です）' })
     }
     const maxAge = value.expires_at ? Math.max(60, Math.floor((Date.parse(value.expires_at) - Date.now()) / 1000)) : 12 * 3600
-    return sendJson(res, 200, { username: value.username, role: value.role, expiresAt: value.expires_at },
+    return sendJson(res, 200, { username: value.username, role: value.role, expiresAt: value.expires_at, workspace: userWorkspace(value.username) },
       { 'set-cookie': sessionCookie(req, value.token, maxAge) })
   }
   if (rel === '/auth/logout' && req.method === 'POST') {
@@ -255,7 +275,7 @@ async function handleAuth(req, res, rel) {
   if (rel === '/auth/me') {
     const user = await authenticate(req)
     if (!user) return sendJson(res, 401, { error: 'unauthenticated' })
-    return sendJson(res, 200, { ...user, harness: { ready: dsh.ready, restarts: dsh.restarts } })
+    return sendJson(res, 200, { ...user, workspace: userWorkspace(user.username), harness: { ready: dsh.ready, restarts: dsh.restarts } })
   }
   return sendJson(res, 404, { error: 'not found' })
 }

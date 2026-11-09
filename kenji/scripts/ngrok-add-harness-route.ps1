@@ -1,14 +1,25 @@
-# 既存の ngrok エンドポイント（Kenji）に /harness へのパス振り分けを追加する。
-# ngrok サービスを再起動するため、Kenji のジョブとして実行する（接続が一時的に切れても完走する）。
-# 公開 URL のヘルスチェックに失敗した場合は、元の設定へ自動で戻す。
+# Add a /harness path route to the existing ngrok endpoint (Kenji).
+# Restarts the ngrok service, so run it as a Kenji job (it survives the brief disconnect).
+# Rolls back to the backed-up config automatically when the public health check fails.
+# Keep this file ASCII-only: Windows PowerShell 5.1 reads BOM-less files as ANSI.
 param(
   [string]$Config = 'C:\ProgramData\kenji\ngrok-service.yml',
-  [string]$Ngrok = 'C:\ProgramData\kenji\bin\ngrok.exe',
+  [string]$Ngrok = '',
   [string]$Service = 'ngrok',
   [string]$PathPrefix = '/harness',
   [int]$GatewayPort = 3090
 )
 $ErrorActionPreference = 'Stop'
+
+if (-not $Ngrok) {
+  # Use the same binary the service runs (e.g. the Microsoft Store package path).
+  $svc = Get-CimInstance Win32_Service | Where-Object Name -eq $Service
+  if (-not $svc) { throw "service '$Service' not found" }
+  $m0 = [regex]::Match($svc.PathName, '^\s*"([^"]+)"|^\s*(\S+)')
+  $Ngrok = if ($m0.Groups[1].Success) { $m0.Groups[1].Value } else { $m0.Groups[2].Value }
+}
+if (-not (Test-Path $Ngrok)) { throw "ngrok binary not found: $Ngrok" }
+Write-Host "ngrok: $Ngrok"
 
 $text = [IO.File]::ReadAllText($Config)
 if ($text -match 'harness\.internal') { Write-Host 'route already configured'; exit 0 }
@@ -43,8 +54,9 @@ Copy-Item $Config $backup
 [IO.File]::WriteAllText($Config, $updated)
 Write-Host "backup: $backup"
 
-& $Ngrok config check --config $Config
-if ($LASTEXITCODE -ne 0) {
+$checkOk = $true
+try { & $Ngrok config check --config $Config; if ($LASTEXITCODE -ne 0) { $checkOk = $false } } catch { $checkOk = $false }
+if (-not $checkOk) {
   Copy-Item $backup $Config -Force
   throw 'ngrok config check failed; restored backup'
 }

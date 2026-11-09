@@ -1,0 +1,88 @@
+@import '@fontsource/ibm-plex-sans-jp/400.css';
+@import '@fontsource/ibm-plex-sans-jp/500.css';
+@import '@fontsource/ibm-plex-sans-jp/600.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 98%;
+    --foreground: 240 6% 10%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 6% 10%;
+    --primary: 221 83% 53%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 240 5% 94%;
+    --secondary-foreground: 240 5% 26%;
+    --muted: 240 5% 95%;
+    --muted-foreground: 240 4% 46%;
+    --accent: 240 5% 94%;
+    --accent-foreground: 240 6% 10%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 142 71% 36%;
+    --success-foreground: 0 0% 100%;
+    --warning: 32 95% 44%;
+    --warning-foreground: 0 0% 100%;
+    --border: 240 6% 90%;
+    --input: 240 6% 88%;
+    --ring: 217 91% 60%;
+    --radius: 0.75rem;
+  }
+  .dark {
+    --background: 240 6% 5%;
+    --foreground: 0 0% 96%;
+    --card: 240 5% 9%;
+    --card-foreground: 0 0% 96%;
+    --primary: 217 91% 62%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 240 4% 15%;
+    --secondary-foreground: 0 0% 85%;
+    --muted: 240 4% 13%;
+    --muted-foreground: 240 5% 62%;
+    --accent: 240 4% 16%;
+    --accent-foreground: 0 0% 96%;
+    --destructive: 0 72% 55%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 142 60% 45%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 55%;
+    --warning-foreground: 0 0% 10%;
+    --border: 240 4% 18%;
+    --input: 240 4% 22%;
+    --ring: 217 91% 60%;
+  }
+  * { @apply border-border; }
+  html { -webkit-text-size-adjust: 100%; }
+  html, body, #root { height: 100%; }
+  body {
+    @apply bg-background font-sans text-foreground antialiased;
+    font-size: 15px;
+    overscroll-behavior: none;
+    -webkit-tap-highlight-color: transparent;
+    font-feature-settings: 'palt' 0;
+  }
+  textarea, input { font-size: 16px; } /* iOS の自動ズームを防ぐ */
+}
+
+.prose-chat { line-height: 1.75; word-break: break-word; }
+.prose-chat > * + * { margin-top: 0.6em; }
+.prose-chat h1, .prose-chat h2, .prose-chat h3 { font-weight: 600; margin-top: 1em; }
+.prose-chat h1 { font-size: 1.2em; } .prose-chat h2 { font-size: 1.1em; } .prose-chat h3 { font-size: 1em; }
+.prose-chat ul { list-style: disc; padding-left: 1.3em; }
+.prose-chat ol { list-style: decimal; padding-left: 1.3em; }
+.prose-chat li + li { margin-top: 0.2em; }
+.prose-chat a { color: hsl(var(--primary)); text-decoration: underline; text-underline-offset: 2px; }
+.prose-chat code { font-family: theme('fontFamily.mono'); font-size: 0.86em; background: hsl(var(--muted)); border-radius: 4px; padding: 0.1em 0.35em; }
+.prose-chat pre { background: hsl(var(--muted)); border-radius: 10px; padding: 0.75em 0.9em; overflow-x: auto; font-size: 0.84em; line-height: 1.55; }
+.prose-chat pre code { background: none; padding: 0; font-size: inherit; }
+.prose-chat blockquote { border-left: 3px solid hsl(var(--border)); padding-left: 0.8em; color: hsl(var(--muted-foreground)); }
+.prose-chat table { display: block; overflow-x: auto; border-collapse: collapse; font-size: 0.9em; }
+.prose-chat th, .prose-chat td { border: 1px solid hsl(var(--border)); padding: 0.3em 0.6em; }
+.prose-chat hr { border-color: hsl(var(--border)); }
+
+.scroll-touch { -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { scrollbar-width: none; }

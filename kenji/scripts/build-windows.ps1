@@ -1,5 +1,6 @@
-# Kenji Harness: Windows 上での取得・ビルド
-# Kenji のジョブとして実行する想定（SYSTEM / サービスアカウント権限）。
+# Kenji Harness: fetch and build on Windows.
+# Meant to run as a Kenji job (SYSTEM or the service account).
+# Keep this file ASCII-only: Windows PowerShell 5.1 reads BOM-less files as ANSI.
 #   powershell -NoProfile -ExecutionPolicy Bypass -File build-windows.ps1 [-Branch kenji-clean] [-SkipCore]
 param(
   [string]$Root = 'C:\ProgramData\kenji\harness',
