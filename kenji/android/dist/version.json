@@ -1,6 +1,6 @@
 {
-  "versionName": "1.1.0",
-  "versionCode": 3,
-  "sha256": "5caffcec886a3d603f7894970affd938364360ae9be7e0a1ba99742bf740e305",
-  "notes": "アプリの自動アップデートに対応しました。ダークテーマに合わせて色を調整しました。"
+  "versionName": "1.2.0",
+  "versionCode": 4,
+  "sha256": "8a1a467cc770f35eb94552302e04b7b1e1ba97d8f83bb36f52790159f6a0be03",
+  "notes": "接続先を Cloudflare Tunnel（kenji.4nanai.com）に変更しました。保存済みの ngrok の URL は自動で新しい URL に切り替わります。"
 }

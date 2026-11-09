@@ -55,7 +55,7 @@ import java.util.Map;
 public class MainActivity extends Activity {
     private static final String PREFS = "kenji-harness";
     private static final String KEY_URL = "url";
-    private static final String DEFAULT_URL = "https://talisman-delighted-anteater.ngrok-free.dev/harness/";
+    private static final String DEFAULT_URL = "https://kenji.4nanai.com/harness/";
     private static final int REQ_FILE = 1;
     private static final int REQ_AUDIO = 2;
     /** A non-browser user agent keeps ngrok's free-tier browser interstitial away. */
@@ -258,7 +258,14 @@ public class MainActivity extends Activity {
     }
 
     private String serverUrl() {
-        return getSharedPreferences(PREFS, MODE_PRIVATE).getString(KEY_URL, DEFAULT_URL);
+        android.content.SharedPreferences prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
+        String saved = prefs.getString(KEY_URL, DEFAULT_URL);
+        // ngrok から Cloudflare Tunnel へ移行したため、保存済みの ngrok の URL は既定の URL に置き換える
+        if (saved.contains(".ngrok-free.dev") || saved.contains(".ngrok.app")) {
+            prefs.edit().remove(KEY_URL).apply();
+            return DEFAULT_URL;
+        }
+        return saved;
     }
 
     private void load(String url) {
@@ -320,7 +327,7 @@ public class MainActivity extends Activity {
         input.setSelectAllOnFocus(true);
         new AlertDialog.Builder(this)
             .setTitle("接続先 URL")
-            .setMessage("Kenji の Harness の URL を入力します（例: https://example.ngrok-free.dev/harness/）")
+            .setMessage("Kenji の Harness の URL を入力します（例: https://kenji.example.com/harness/）")
             .setView(input)
             .setPositiveButton("保存して開く", (d, w) -> {
                 String url = input.getText().toString().trim();
@@ -356,7 +363,7 @@ public class MainActivity extends Activity {
         String html = "<!doctype html><html lang='ja'><meta name='viewport' content='width=device-width,initial-scale=1'>"
             + "<body style='margin:0;background:#181818;color:#f4f4f5;font:15px/1.7 sans-serif;display:flex;align-items:center;justify-content:center;height:100vh'>"
             + "<div style='padding:24px;max-width:340px'><h2 style='font-size:19px;margin:0 0 8px'>Harness に接続できません</h2>"
-            + "<p style='color:#a1a1aa;margin:0 0 16px'>PC の Kenji と ngrok が動いているか、接続先 URL が正しいかを確認してください。</p>"
+            + "<p style='color:#a1a1aa;margin:0 0 16px'>PC の Kenji とトンネル（Cloudflare）が動いているか、接続先 URL が正しいかを確認してください。</p>"
             + "<p style='color:#71717a;font-size:12px;word-break:break-all'>" + escape(serverUrl()) + "<br>" + escape(detail) + "</p>"
             + "<p style='color:#a1a1aa;font-size:13px'>戻るボタンで「再読み込み」や「接続先 URL を変更」を選べます。</p></div></body></html>";
         web.loadDataWithBaseURL(null, html, "text/html", "utf-8", null);
