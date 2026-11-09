@@ -1,23 +1,58 @@
-import { memo, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {
   AlertTriangle, ArrowDown, ArrowUp, Brain, Check, ChevronRight, Copy, FileCode2, Hand, Loader2, ShieldAlert, ShieldCheck,
-  Sparkles, Square, Terminal, Wrench, X, Zap,
+  Mic, Plus, Sparkles, Square, Terminal, Wrench, X, Zap,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import type { ApprovalRequest, QuestionRequest } from '@/lib/app'
-import type { AssistantPart, ChatItem, ToolPart } from '@/lib/session'
+import type { ChatItem, ToolPart } from '@/lib/session'
 import { cn, vibrate } from '@/lib/utils'
 
 // ---------------------------------------------------------------------------
 // メッセージ一覧
 // ---------------------------------------------------------------------------
-export function MessageList({ items, running, emptyHint }: { items: ChatItem[]; running: boolean; emptyHint: React.ReactNode }) {
+type Row =
+  | { kind: 'item'; key: string; item: Exclude<ChatItem, { kind: 'assistant' }> }
+  | { kind: 'text'; key: string; text: string; streaming: boolean }
+  | { kind: 'reasoning'; key: string; text: string; live: boolean }
+  | { kind: 'tools'; key: string; tools: ToolPart[]; live: boolean }
+  | { kind: 'note'; key: string; text: string }
+
+/** アシスタントの出力を「本文」「思考」「連続したツール実行のまとまり」に並べ替える */
+function toRows(items: ChatItem[]): Row[] {
+  const rows: Row[] = []
+  for (const item of items) {
+    if (item.kind !== 'assistant') {
+      rows.push({ kind: 'item', key: item.key, item })
+      continue
+    }
+    item.parts.forEach((part, index) => {
+      const key = `${item.key}-${index}`
+      const last = rows[rows.length - 1]
+      if (part.kind === 'tool') {
+        if (last?.kind === 'tools') {
+          last.tools.push(part)
+          last.live = last.live || Boolean(item.live)
+        } else rows.push({ kind: 'tools', key, tools: [part], live: Boolean(item.live) })
+      } else if (part.kind === 'text') {
+        rows.push({ kind: 'text', key, text: part.text, streaming: Boolean(item.live) && index === item.parts.length - 1 })
+      } else {
+        rows.push({ kind: 'reasoning', key, text: part.text, live: Boolean(item.live) && index === item.parts.length - 1 })
+      }
+    })
+    if (item.interrupted) rows.push({ kind: 'note', key: `${item.key}-int`, text: '途中で中断されました' })
+  }
+  return rows
+}
+
+export function MessageList({ items, running, status, emptyHint }: { items: ChatItem[]; running: boolean; status?: string; emptyHint: React.ReactNode }) {
   const scroller = useRef<HTMLDivElement>(null)
   const stick = useRef(true)
   const [showJump, setShowJump] = useState(false)
+  const rows = useMemo(() => toRows(items), [items])
 
   const onScroll = () => {
     const el = scroller.current
@@ -30,7 +65,7 @@ export function MessageList({ items, running, emptyHint }: { items: ChatItem[]; 
   useLayoutEffect(() => {
     const el = scroller.current
     if (el && stick.current) el.scrollTop = el.scrollHeight
-  }, [items, running])
+  }, [rows, running])
 
   const jump = () => {
     const el = scroller.current
@@ -41,15 +76,16 @@ export function MessageList({ items, running, emptyHint }: { items: ChatItem[]; 
 
   return (
     <div className="relative min-h-0 flex-1">
-      <div ref={scroller} onScroll={onScroll} className="scroll-touch h-full overflow-y-auto px-3 pb-4 pt-3">
-        {items.length === 0 && !running
+      <div ref={scroller} onScroll={onScroll} className="scroll-touch h-full overflow-y-auto px-5 pb-6 pt-4">
+        {rows.length === 0 && !running
           ? <div className="flex h-full items-center justify-center px-6 text-center">{emptyHint}</div>
           : (
-            <div className="mx-auto flex max-w-3xl flex-col gap-3">
-              {items.map(item => <ChatRow key={item.key} item={item} />)}
-              {running && !items.some(i => i.kind === 'assistant' && i.live) && (
-                <div className="flex items-center gap-2 px-1 text-sm text-muted-foreground">
-                  <Loader2 className="size-4 animate-spin" /> 考えています…
+            <div className="mx-auto flex max-w-3xl flex-col gap-5">
+              {rows.map(row => <ChatRow key={row.key} row={row} />)}
+              {running && (
+                <div className="flex items-center gap-2.5 text-[15px]">
+                  <WorkingDots />
+                  <span className="font-medium text-brand">{status ?? '作業中…'}</span>
                 </div>
               )}
             </div>
@@ -57,7 +93,7 @@ export function MessageList({ items, running, emptyHint }: { items: ChatItem[]; 
       </div>
       {showJump && (
         <button onClick={jump} aria-label="最新へ移動"
-          className="absolute bottom-3 left-1/2 flex size-9 -translate-x-1/2 items-center justify-center rounded-full border bg-card shadow-md">
+          className="absolute bottom-3 left-1/2 flex size-10 -translate-x-1/2 items-center justify-center rounded-full border bg-card shadow-lg">
           <ArrowDown className="size-4" />
         </button>
       )}
@@ -65,32 +101,41 @@ export function MessageList({ items, running, emptyHint }: { items: ChatItem[]; 
   )
 }
 
-const ChatRow = memo(function ChatRow({ item }: { item: ChatItem }) {
+function WorkingDots() {
+  return (
+    <span className="grid size-4 grid-cols-2 gap-[3px]" aria-hidden>
+      {[0, 1, 2, 3].map(i => (
+        <span key={i} className="size-[6px] animate-pulse rounded-full bg-brand" style={{ animationDelay: `${i * 180}ms` }} />
+      ))}
+    </span>
+  )
+}
+
+const ChatRow = memo(function ChatRow({ row }: { row: Row }) {
+  if (row.kind === 'text') return <Markdown text={row.text} streaming={row.streaming} />
+  if (row.kind === 'reasoning') return <Reasoning text={row.text} live={row.live} />
+  if (row.kind === 'tools') return <ToolGroup tools={row.tools} live={row.live} />
+  if (row.kind === 'note') return <div className="text-sm text-muted-foreground">{row.text}</div>
+  const item = row.item
   if (item.kind === 'user') {
     return (
-      <div className="flex justify-end pl-10">
-        <div className="max-w-full whitespace-pre-wrap break-words rounded-2xl rounded-br-md bg-primary px-3.5 py-2 text-[15px] leading-relaxed text-primary-foreground shadow-sm">
+      <div className="flex justify-end pl-12">
+        <div className="max-w-full whitespace-pre-wrap break-words rounded-3xl bg-secondary px-4 py-2.5 text-[16px] leading-relaxed text-foreground">
           {item.text || (item.images > 0 ? `画像 ${item.images} 枚` : '')}
-          {item.text && item.images > 0 && <div className="mt-1 text-xs opacity-80">＋画像 {item.images} 枚</div>}
+          {item.text && item.images > 0 && <div className="mt-1 text-xs opacity-70">＋画像 {item.images} 枚</div>}
         </div>
       </div>
     )
   }
   if (item.kind === 'error') {
     return (
-      <div className="flex gap-2 rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm">
+      <div className="flex gap-2.5 rounded-2xl bg-destructive/10 p-3.5 text-[15px]">
         <AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" />
-        <div className="min-w-0">
-          <div className="font-medium text-destructive">エラー</div>
-          <div className="break-words text-foreground/80">{explainError(item.message, item.code)}</div>
-        </div>
+        <div className="min-w-0 break-words leading-relaxed text-foreground/90">{explainError(item.message, item.code)}</div>
       </div>
     )
   }
-  if (item.kind === 'notice') {
-    return <div className="text-center text-xs text-muted-foreground">{item.text}</div>
-  }
-  return <AssistantRow parts={item.parts} live={item.live} interrupted={item.interrupted} />
+  return <div className="text-center text-sm text-muted-foreground">{item.text}</div>
 })
 
 function explainError(message: string, code?: string): string {
@@ -101,22 +146,9 @@ function explainError(message: string, code?: string): string {
   return message
 }
 
-function AssistantRow({ parts, live, interrupted }: { parts: AssistantPart[]; live?: boolean; interrupted?: boolean }) {
-  return (
-    <div className="flex flex-col gap-2 pr-2">
-      {parts.map((part, index) => {
-        if (part.kind === 'text') return <Markdown key={index} text={part.text} streaming={live && index === parts.length - 1} />
-        if (part.kind === 'reasoning') return <Reasoning key={index} text={part.text} live={live && index === parts.length - 1} />
-        return <ToolCard key={part.callId || index} part={part} live={live} />
-      })}
-      {interrupted && <div className="text-xs text-muted-foreground">（途中で中断されました）</div>}
-    </div>
-  )
-}
-
 const Markdown = memo(function Markdown({ text, streaming }: { text: string; streaming?: boolean }) {
   return (
-    <div className={cn('prose-chat text-[15px]', streaming && 'after:ml-0.5 after:inline-block after:h-4 after:w-1.5 after:animate-pulse after:bg-foreground/60 after:align-middle')}>
+    <div className={cn('prose-chat text-[16px] leading-[1.8]', streaming && 'after:ml-0.5 after:inline-block after:h-4 after:w-1.5 after:animate-pulse after:bg-foreground/60 after:align-middle')}>
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ pre: CodeBlock, a: ({ ...props }) => <a {...props} target="_blank" rel="noreferrer" /> }}>
         {text}
       </ReactMarkdown>
@@ -148,13 +180,13 @@ function CodeBlock({ children, ...props }: React.HTMLAttributes<HTMLPreElement>)
 function Reasoning({ text, live }: { text: string; live?: boolean }) {
   const [open, setOpen] = useState(false)
   return (
-    <div className="rounded-xl bg-muted/60">
-      <button onClick={() => setOpen(!open)} className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-muted-foreground">
-        <Brain className="size-3.5" />
-        <span className="flex-1">{live ? '思考中…' : '思考の過程'}</span>
-        <ChevronRight className={cn('size-3.5 transition-transform', open && 'rotate-90')} />
+    <div>
+      <button onClick={() => setOpen(!open)} className="flex items-center gap-1.5 text-left text-[15px] text-muted-foreground">
+        <Brain className="size-4" />
+        <span>{live ? '思考中…' : '思考しました'}</span>
+        <ChevronRight className={cn('size-4 transition-transform', open && 'rotate-90')} />
       </button>
-      {open && <div className="whitespace-pre-wrap break-words px-3 pb-3 text-xs leading-relaxed text-muted-foreground">{text}</div>}
+      {open && <div className="mt-2 whitespace-pre-wrap break-words border-l-2 pl-3 text-sm leading-relaxed text-muted-foreground">{text}</div>}
     </div>
   )
 }
@@ -168,6 +200,43 @@ function toolSummary(part: ToolPart): string {
   for (const key of pick) if (typeof args[key] === 'string' && args[key]) return String(args[key]).split('\n')[0].slice(0, 120)
   const first = Object.values(args).find(v => typeof v === 'string')
   return typeof first === 'string' ? first.slice(0, 120) : ''
+}
+
+const COMMAND_TOOLS = new Set(['bash', 'pwsh', 'shell', 'powershell', 'job_start', 'jobs'])
+const READ_TOOLS = new Set(['read', 'glob', 'grep', 'list', 'ls', 'web_fetch', 'web_search'])
+const EDIT_TOOLS = new Set(['write', 'edit', 'multi_edit', 'apply_patch'])
+
+function groupLabel(tools: ToolPart[]): string {
+  let commands = 0, reads = 0, edits = 0, other = 0
+  for (const t of tools) {
+    if (COMMAND_TOOLS.has(t.name)) commands += 1
+    else if (READ_TOOLS.has(t.name)) reads += 1
+    else if (EDIT_TOOLS.has(t.name)) edits += 1
+    else other += 1
+  }
+  const parts = []
+  if (commands) parts.push(`${commands} 件のコマンドを実行しました`)
+  if (reads) parts.push(`${reads} 件のファイルを読みました`)
+  if (edits) parts.push(`${edits} 件のファイルを編集しました`)
+  if (other) parts.push(`${other} 件のツールを使いました`)
+  return parts.join('、')
+}
+
+function ToolGroup({ tools, live }: { tools: ToolPart[]; live: boolean }) {
+  const [open, setOpen] = useState(false)
+  const pending = tools.some(t => !t.result)
+  const failed = tools.filter(t => t.result?.isError).length
+  return (
+    <div>
+      <button onClick={() => { setOpen(!open); vibrate(5) }} className="flex max-w-full items-center gap-1.5 text-left text-[15px] text-muted-foreground">
+        {pending && live ? <Loader2 className="size-4 shrink-0 animate-spin" /> : null}
+        <span className="truncate">{pending ? (live ? '実行中' : groupLabel(tools)) : groupLabel(tools)}</span>
+        {failed > 0 && <span className="shrink-0 text-destructive">（失敗 {failed}）</span>}
+        <ChevronRight className={cn('size-4 shrink-0 transition-transform', open && 'rotate-90')} />
+      </button>
+      {open && <div className="mt-2 flex flex-col gap-2">{tools.map((t, i) => <ToolCard key={t.callId || i} part={t} live={live} />)}</div>}
+    </div>
+  )
 }
 
 function ToolCard({ part, live }: { part: ToolPart; live?: boolean }) {
@@ -289,75 +358,140 @@ export function QuestionCard({ question, onAnswer }: { question: QuestionRequest
 // ---------------------------------------------------------------------------
 // 入力欄
 // ---------------------------------------------------------------------------
-export function Composer({ running, disabled, snippets, onSend, onStop }: {
+type SpeechRecognitionLike = {
+  lang: string
+  interimResults: boolean
+  continuous: boolean
+  start: () => void
+  stop: () => void
+  onresult: ((event: { results: ArrayLike<ArrayLike<{ transcript: string }> & { isFinal: boolean }> }) => void) | null
+  onend: (() => void) | null
+  onerror: (() => void) | null
+}
+
+function speechCtor(): (new () => SpeechRecognitionLike) | null {
+  const w = window as unknown as { SpeechRecognition?: new () => SpeechRecognitionLike; webkitSpeechRecognition?: new () => SpeechRecognitionLike }
+  return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null
+}
+
+export function Composer({ running, disabled, modelLabel, snippets, onModel, onSend, onStop }: {
   running: boolean
   disabled?: boolean
+  modelLabel: string
   snippets: string[]
+  onModel: () => void
   onSend: (text: string, mode: 'queue' | 'steer') => Promise<void>
   onStop: () => void
 }) {
   const [text, setText] = useState(() => sessionStorage.getItem('kh.draft') ?? '')
   const [sending, setSending] = useState(false)
   const [steer, setSteer] = useState(false)
+  const [menu, setMenu] = useState(false)
+  const [listening, setListening] = useState(false)
   const area = useRef<HTMLTextAreaElement>(null)
+  const recognition = useRef<SpeechRecognitionLike | null>(null)
+  const voice = useMemo(() => speechCtor(), [])
 
   useEffect(() => {
     try { sessionStorage.setItem('kh.draft', text) } catch { /* ignore */ }
     const el = area.current
     if (!el) return
     el.style.height = 'auto'
-    el.style.height = `${Math.min(el.scrollHeight, 180)}px`
+    el.style.height = `${Math.min(el.scrollHeight, 200)}px`
   }, [text])
 
   const send = async (value = text) => {
     const trimmed = value.trim()
     if (!trimmed || sending) return
     setSending(true)
+    setMenu(false)
     vibrate()
     try {
       await onSend(trimmed, running && steer ? 'steer' : 'queue')
       if (value === text) setText('')
+      setSteer(false)
     } finally {
       setSending(false)
     }
   }
 
+  const toggleVoice = () => {
+    if (!voice) return
+    if (listening) {
+      recognition.current?.stop()
+      return
+    }
+    const r = new voice()
+    r.lang = 'ja-JP'
+    r.interimResults = true
+    r.continuous = false
+    const base = text ? `${text} ` : ''
+    r.onresult = (event) => {
+      let spoken = ''
+      for (let i = 0; i < event.results.length; i += 1) spoken += event.results[i][0].transcript
+      setText(base + spoken)
+    }
+    r.onend = () => setListening(false)
+    r.onerror = () => setListening(false)
+    recognition.current = r
+    setListening(true)
+    vibrate(15)
+    r.start()
+  }
+
+  const showStop = running && !text.trim()
   return (
-    <div className="border-t bg-background/95 px-2 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2 backdrop-blur">
-      {!text && snippets.length > 0 && (
-        <div className="no-scrollbar mb-2 flex gap-1.5 overflow-x-auto px-1">
-          {snippets.map(s => (
-            <button key={s} disabled={disabled || sending} onClick={() => void send(s)}
-              className="shrink-0 rounded-full border bg-card px-3 py-1.5 text-xs text-foreground/80 active:bg-accent disabled:opacity-50">
-              {s}
-            </button>
+    <div className="px-3 pb-[max(env(safe-area-inset-bottom),0.75rem)] pt-1">
+      {menu && (
+        <div className="mx-auto mb-2 max-w-3xl overflow-hidden rounded-2xl border bg-card shadow-xl">
+          <div className="px-4 pb-1 pt-3 text-xs font-medium text-muted-foreground">定型文</div>
+          {snippets.map(snippet => (
+            <button key={snippet} disabled={disabled || sending} onClick={() => void send(snippet)}
+              className="block w-full px-4 py-3 text-left text-[15px] active:bg-accent">{snippet}</button>
           ))}
+          {running && (
+            <button onClick={() => { setSteer(!steer); setMenu(false); vibrate() }} className="flex w-full items-center gap-2 border-t px-4 py-3 text-left text-[15px] active:bg-accent">
+              <Zap className={cn('size-4', steer && 'text-warning')} />{steer ? '割り込みモードを解除' : '割り込んで指示する'}
+            </button>
+          )}
         </div>
       )}
-      <div className="mx-auto flex max-w-3xl items-end gap-1.5">
-        {running && (
-          <button onClick={() => { setSteer(!steer); vibrate() }} aria-label="割り込みモード"
-            className={cn('mb-1 flex size-9 shrink-0 items-center justify-center rounded-full border', steer ? 'border-warning bg-warning/15 text-warning' : 'text-muted-foreground')}>
-            <Zap className="size-4" />
+      <div className={cn('mx-auto max-w-3xl rounded-[28px] border bg-card px-2 pb-2 pt-1 shadow-sm', steer && 'border-warning/60')}>
+        <textarea ref={area} rows={1} value={text} disabled={disabled}
+          onChange={e => setText(e.target.value)}
+          onFocus={() => setMenu(false)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+              e.preventDefault()
+              void send()
+            }
+          }}
+          placeholder={disabled ? '接続中…' : running ? (steer ? '割り込んで指示（今の作業に反映）…' : 'メッセージをキューに追加…') : 'メッセージを入力…'}
+          className="block max-h-[200px] w-full resize-none bg-transparent px-3 pb-2 pt-3 text-[17px] leading-7 outline-none placeholder:text-muted-foreground" />
+        <div className="flex items-center gap-2">
+          <button onClick={() => { setMenu(!menu); vibrate(5) }} aria-label="メニュー"
+            className={cn('flex size-11 shrink-0 items-center justify-center rounded-full bg-secondary', menu && 'bg-accent')}>
+            <Plus className={cn('size-5 transition-transform', menu && 'rotate-45')} />
           </button>
-        )}
-        <div className="flex min-h-11 flex-1 items-end rounded-3xl border bg-card px-3.5 py-2 shadow-sm focus-within:ring-2 focus-within:ring-ring">
-          <textarea ref={area} rows={1} value={text} disabled={disabled}
-            onChange={e => setText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-                e.preventDefault()
-                void send()
-              }
-            }}
-            placeholder={disabled ? '接続中…' : running ? (steer ? '割り込んで指示（今の作業に反映）' : '次の指示を予約') : 'メッセージを入力'}
-            className="max-h-[180px] w-full resize-none bg-transparent text-[16px] leading-6 outline-none placeholder:text-muted-foreground" />
+          <button onClick={onModel} className="flex h-11 min-w-0 items-center gap-1.5 rounded-full bg-secondary px-4 text-[15px] font-medium">
+            <span className="truncate">{modelLabel}</span>
+          </button>
+          <div className="flex-1" />
+          {voice && (
+            <button onClick={toggleVoice} aria-label="音声入力"
+              className={cn('flex size-11 shrink-0 items-center justify-center rounded-full bg-secondary', listening && 'bg-destructive text-destructive-foreground')}>
+              <Mic className="size-5" />
+            </button>
+          )}
+          {showStop
+            ? <button onClick={() => { vibrate(20); onStop() }} aria-label="停止" className="flex size-11 shrink-0 items-center justify-center rounded-full bg-secondary">
+                <Square className="size-4 fill-current" />
+              </button>
+            : <button onClick={() => void send()} disabled={!text.trim() || sending || disabled} aria-label="送信"
+                className="flex size-11 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground disabled:opacity-30">
+                {sending ? <Loader2 className="size-5 animate-spin" /> : <ArrowUp className="size-5" />}
+              </button>}
         </div>
-        {running && !text.trim()
-          ? <Button size="icon" variant="destructive" className="mb-0.5 shrink-0 rounded-full" onClick={() => { vibrate(20); onStop() }} aria-label="停止"><Square className="fill-current" /></Button>
-          : <Button size="icon" className="mb-0.5 shrink-0 rounded-full" disabled={!text.trim() || sending || disabled} onClick={() => void send()} aria-label="送信">
-              {sending ? <Loader2 className="animate-spin" /> : <ArrowUp />}
-            </Button>}
       </div>
     </div>
   )

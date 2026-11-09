@@ -213,7 +213,7 @@ function Snippets() {
 }
 
 function Theme() {
-  const [theme, setTheme] = useLocal<string>('kh.theme', 'system')
+  const [theme, setTheme] = useLocal<string>('kh.theme', 'dark')
   const options = [
     { id: 'system', label: '自動', icon: Monitor },
     { id: 'light', label: 'ライト', icon: Sun },

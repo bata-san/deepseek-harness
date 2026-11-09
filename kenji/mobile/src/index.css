@@ -30,36 +30,38 @@
     --input: 240 6% 88%;
     --ring: 217 91% 60%;
     --radius: 0.75rem;
+    --brand: 20 75% 50%;
   }
   .dark {
-    --background: 240 6% 5%;
-    --foreground: 0 0% 96%;
-    --card: 240 5% 9%;
-    --card-foreground: 0 0% 96%;
-    --primary: 217 91% 62%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 240 4% 15%;
+    --background: 0 0% 8.5%;
+    --foreground: 0 0% 95%;
+    --card: 0 0% 12%;
+    --card-foreground: 0 0% 95%;
+    --primary: 0 0% 96%;
+    --primary-foreground: 0 0% 8%;
+    --secondary: 0 0% 15%;
     --secondary-foreground: 0 0% 85%;
-    --muted: 240 4% 13%;
-    --muted-foreground: 240 5% 62%;
-    --accent: 240 4% 16%;
+    --muted: 0 0% 14%;
+    --muted-foreground: 0 0% 58%;
+    --accent: 0 0% 17%;
     --accent-foreground: 0 0% 96%;
-    --destructive: 0 72% 55%;
+    --destructive: 0 70% 58%;
     --destructive-foreground: 0 0% 100%;
-    --success: 142 60% 45%;
+    --success: 145 55% 48%;
     --success-foreground: 0 0% 100%;
-    --warning: 38 92% 55%;
-    --warning-foreground: 0 0% 10%;
-    --border: 240 4% 18%;
-    --input: 240 4% 22%;
-    --ring: 217 91% 60%;
+    --warning: 36 92% 58%;
+    --warning-foreground: 0 0% 8%;
+    --border: 0 0% 19%;
+    --input: 0 0% 22%;
+    --ring: 0 0% 60%;
+    --brand: 20 75% 62%;
   }
   * { @apply border-border; }
   html { -webkit-text-size-adjust: 100%; }
   html, body, #root { height: 100%; }
   body {
     @apply bg-background font-sans text-foreground antialiased;
-    font-size: 15px;
+    font-size: 16px;
     overscroll-behavior: none;
     -webkit-tap-highlight-color: transparent;
     font-feature-settings: 'palt' 0;
