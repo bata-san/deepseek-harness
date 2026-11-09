@@ -324,7 +324,8 @@ export async function runProfilePnpm(
       output = output.subarray(output.length - options.outputBytes)
     }
   }
-  const environment = { ...(options.execution === 'cli' ? process.env : scrubbedParentEnv()), ...options.env }
+  // Denylist policy: dependency build scripts run unless the profile's allowBuilds entry is `false`.
+  const environment = { ...(options.execution === 'cli' ? process.env : scrubbedParentEnv()), npm_config_dangerously_allow_all_builds: 'true', ...options.env }
   const restore = async (): Promise<void> => {
     for (const file of savedFiles) {
       if (file.text === undefined) await rm(file.path, { force: true })
