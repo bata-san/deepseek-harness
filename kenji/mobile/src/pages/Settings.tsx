@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Check, ExternalLink, KeyRound, Loader2, LogOut, Monitor, Moon, Plus, RefreshCw, Server, Sun, Trash2, X } from 'lucide-react'
+import { Brain, Check, ExternalLink, Eye, KeyRound, Loader2, LogOut, Monitor, Moon, Plus, RefreshCw, Server, Sun, Trash2, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -37,10 +37,53 @@ async function mutate(ns: string, ops: { op: 'set' | 'unset'; path: string[]; va
   await call('settings/mutate', { ns, ops, expectedRevision: current?.revision ?? 0 })
 }
 
-type ModelEntry = { id: string; name?: string; contextWindow?: number; reasoningEfforts?: Record<string, string | null> }
-const STANDARD_EFFORTS: Record<string, string | null> = { off: null, low: 'low', medium: 'medium', high: 'high' }
+type ModelEntry = { id: string; name?: string; contextWindow?: number; input?: ('text' | 'image')[]; reasoningEfforts?: Record<string, string | null> | false }
+type Discovered = { id: string; name?: string; contextWindow?: number; inputModalities?: string[] }
+/** 思考レベル: キーが選択肢、値が API に送る文字列 */
+const STANDARD_EFFORTS: Record<string, string> = { low: 'low', mid: 'medium', high: 'high', max: 'max' }
 type ProviderEntry = { apiKeyEnv?: string; baseURL?: string; displayName?: string; api?: string; models?: ModelEntry[] }
-type Discovered = { id: string; name?: string; contextWindow?: number }
+
+function fromDiscovered(m: Discovered): ModelEntry {
+  return {
+    id: m.id,
+    ...(m.name ? { name: m.name } : {}),
+    ...(m.contextWindow ? { contextWindow: m.contextWindow } : {}),
+    ...(m.inputModalities?.includes('image') ? { input: ['text', 'image'] as ('text' | 'image')[] } : {}),
+  }
+}
+
+/** 1 モデルの設定行: 画像入力・思考レベル・コンテキスト長 */
+function ModelRow({ model, onChange, onRemove }: { model: ModelEntry; onChange: (m: ModelEntry) => void; onRemove: () => void }) {
+  const vision = model.input?.includes('image') ?? false
+  const reasoning = Boolean(model.reasoningEfforts)
+  const chip = (on: boolean) => cn('flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px]', on ? 'border-transparent bg-primary text-primary-foreground' : 'text-muted-foreground')
+  return (
+    <div className="rounded-lg border px-2.5 py-2">
+      <div className="flex items-center gap-2">
+        <span className="min-w-0 flex-1 truncate text-[13px] font-medium">{model.id}</span>
+        <button aria-label={`${model.id} を外す`} onClick={onRemove} className="p-0.5 text-muted-foreground"><X className="size-3.5" /></button>
+      </div>
+      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+        <button className={chip(vision)} onClick={() => { vibrate(5); onChange({ ...model, input: vision ? ['text'] : ['text', 'image'] }) }}>
+          <Eye className="size-3" />画像入力
+        </button>
+        <button className={chip(reasoning)} onClick={() => { vibrate(5); onChange({ ...model, reasoningEfforts: reasoning ? false : { ...STANDARD_EFFORTS } }) }}>
+          <Brain className="size-3" />思考 low / mid / high / max
+        </button>
+        <label className="flex items-center gap-1 text-[11px] text-muted-foreground">
+          <input inputMode="numeric" value={model.contextWindow ? String(Math.round(model.contextWindow / 1000)) : ''} placeholder="自動"
+            onChange={e => {
+              const k = Number(e.target.value.replace(/[^0-9]/g, ''))
+              const { contextWindow: _c, ...rest } = model
+              void _c
+              onChange(k > 0 ? { ...rest, contextWindow: k * 1000 } : rest)
+            }}
+            className="h-7 w-14 rounded-md border bg-background px-1.5 text-right text-[12px]" />k トークン
+        </label>
+      </div>
+    </div>
+  )
+}
 
 /** モデル一覧の取得・複数選択・手入力でプロバイダーにモデルを何個でも追加する */
 function ModelPicker({ discover, initial, onChange }: {
@@ -54,18 +97,10 @@ function ModelPicker({ discover, initial, onChange }: {
   const [error, setError] = useState('')
   const [manual, setManual] = useState('')
   const [filter, setFilter] = useState('')
-  const [efforts, setEfforts] = useState(() => initial.some(m => m.reasoningEfforts))
 
-  const emit = (next: Map<string, ModelEntry>, on: boolean) => {
-    onChange([...next.values()].map(m => {
-      const { reasoningEfforts: _drop, ...rest } = m
-      void _drop
-      return on ? { ...rest, reasoningEfforts: m.reasoningEfforts ?? STANDARD_EFFORTS } : rest
-    }))
-  }
   const update = (next: Map<string, ModelEntry>) => {
     setChosen(next)
-    emit(next, efforts)
+    onChange([...next.values()])
   }
   const fetchList = async () => {
     setBusy(true)
@@ -83,7 +118,7 @@ function ModelPicker({ discover, initial, onChange }: {
   const toggle = (m: Discovered) => {
     const next = new Map(chosen)
     if (next.has(m.id)) next.delete(m.id)
-    else next.set(m.id, { id: m.id, ...(m.name ? { name: m.name } : {}), ...(m.contextWindow ? { contextWindow: m.contextWindow } : {}) })
+    else next.set(m.id, fromDiscovered(m))
     update(next)
     vibrate(5)
   }
@@ -96,6 +131,10 @@ function ModelPicker({ discover, initial, onChange }: {
     update(next)
     setManual('')
   }
+  const setAll = (patch: (m: ModelEntry) => ModelEntry) => {
+    const next = new Map([...chosen].map(([k, v]) => [k, patch(v)]))
+    update(next)
+  }
   const visible = (found ?? []).filter(m => !filter || m.id.toLowerCase().includes(filter.toLowerCase()))
 
   return (
@@ -106,22 +145,26 @@ function ModelPicker({ discover, initial, onChange }: {
           {busy ? <Loader2 className="animate-spin" /> : <RefreshCw />}一覧を取得
         </Button>
       </div>
-      {chosen.size > 0 && (
-        <div className="flex flex-wrap gap-1">
-          {[...chosen.values()].map(m => (
-            <span key={m.id} className="flex items-center gap-1 rounded-full bg-secondary py-0.5 pl-2.5 pr-1 text-xs">
-              {m.id}
-              <button aria-label={`${m.id} を外す`} onClick={() => { const n = new Map(chosen); n.delete(m.id); update(n) }} className="rounded-full p-0.5 text-muted-foreground"><X className="size-3" /></button>
-            </span>
-          ))}
+      {chosen.size > 1 && (
+        <div className="flex flex-wrap gap-1.5 text-[11px]">
+          <span className="text-muted-foreground">まとめて:</span>
+          <button className="underline" onClick={() => setAll(m => ({ ...m, input: ['text', 'image'] }))}>画像入力 オン</button>
+          <button className="underline" onClick={() => setAll(m => ({ ...m, input: ['text'] }))}>オフ</button>
+          <button className="underline" onClick={() => setAll(m => ({ ...m, reasoningEfforts: { ...STANDARD_EFFORTS } }))}>思考 オン</button>
+          <button className="underline" onClick={() => setAll(m => ({ ...m, reasoningEfforts: false }))}>オフ</button>
         </div>
       )}
+      {[...chosen.values()].map(m => (
+        <ModelRow key={m.id} model={m}
+          onChange={(next) => { const n = new Map(chosen); n.set(m.id, next); update(n) }}
+          onRemove={() => { const n = new Map(chosen); n.delete(m.id); update(n) }} />
+      ))}
       {error && <p className="text-xs text-muted-foreground">{error}</p>}
       {found && found.length > 0 && (
         <div className="flex flex-col gap-1.5">
           <div className="flex gap-1.5">
             {found.length > 8 && <Input value={filter} onChange={e => setFilter(e.target.value)} placeholder="絞り込み" className="h-9 text-sm" />}
-            <Button size="sm" variant="ghost" className="shrink-0" onClick={() => { const n = new Map(chosen); for (const m of visible) n.set(m.id, { id: m.id, ...(m.contextWindow ? { contextWindow: m.contextWindow } : {}) }); update(n) }}>すべて選択</Button>
+            <Button size="sm" variant="ghost" className="shrink-0" onClick={() => { const n = new Map(chosen); for (const m of visible) if (!n.has(m.id)) n.set(m.id, fromDiscovered(m)); update(n) }}>すべて選択</Button>
           </div>
           <div className="max-h-64 overflow-y-auto rounded-lg border">
             {visible.map(m => (
@@ -130,16 +173,13 @@ function ModelPicker({ discover, initial, onChange }: {
                   {chosen.has(m.id) && <Check className="size-3" />}
                 </span>
                 <span className="min-w-0 flex-1 truncate">{m.name && m.name !== m.id ? `${m.name}（${m.id}）` : m.id}</span>
+                {m.inputModalities?.includes('image') && <Eye className="size-3 shrink-0 text-muted-foreground" />}
                 {m.contextWindow ? <span className="shrink-0 text-[11px] text-muted-foreground">{Math.round(m.contextWindow / 1000)}k</span> : null}
               </button>
             ))}
           </div>
         </div>
       )}
-      <label className="flex items-center gap-2 px-0.5 text-xs text-muted-foreground">
-        <input type="checkbox" checked={efforts} onChange={e => { setEfforts(e.target.checked); emit(chosen, e.target.checked) }} className="size-4 accent-current" />
-        思考レベル（オフ / low / medium / high）を切り替えられるようにする
-      </label>
       <div className="flex gap-1.5">
         <Input value={manual} onChange={e => setManual(e.target.value)} placeholder="モデル ID を直接追加（複数はカンマ区切り）" className="h-9 text-sm" autoCapitalize="none"
           onKeyDown={e => { if (e.key === 'Enter') addManual() }} />

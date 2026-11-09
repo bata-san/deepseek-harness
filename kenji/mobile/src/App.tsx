@@ -4,6 +4,7 @@ import {
   Settings as SettingsIcon, ShieldAlert, WifiOff, X,
 } from 'lucide-react'
 import { ApprovalCard, Composer, MessageList, QuestionCard } from '@/components/Chat'
+import { ModeSheet, PERMISSION_LABELS, modeName } from '@/components/ModeSheet'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
@@ -94,6 +95,8 @@ function Shell({ me, onLogout }: { me: Me; onLogout: () => void }) {
   const [sessionId, setSessionId] = useLocal<string | null>('kh.session', null)
   const [menu, setMenu] = useState(false)
   const [modelSheet, setModelSheet] = useState(false)
+  const [modeSheet, setModeSheet] = useState(false)
+  const [defaults, setDefaults] = useLocal<{ mode?: string; permission?: string }>('kh.defaults', {})
   const [snippets] = useLocal<string[]>('kh.snippets', DEFAULT_SNIPPETS)
   const connection = useConnection()
   const { sessions, loading, refresh } = useSessions(true)
@@ -131,12 +134,15 @@ function Shell({ me, onLogout }: { me: Me; onLogout: () => void }) {
 
   const createSession = useCallback(async (cwd?: string | null) => {
     vibrate()
-    const value = await call<{ sessionId: string }>('session/create', { request: cwd ? { cwd } : {} })
+    const value = await call<{ sessionId: string }>('session/create', { request: { ...(cwd ? { cwd } : {}), ...(defaults.mode ? { agentPreset: defaults.mode } : {}) } })
+    if (defaults.permission) {
+      await call('commands/execute', { agentId: value.sessionId, line: `/permission ${defaults.permission}`, submittedAttachments: [] }).catch(() => undefined)
+    }
     setSessionId(value.sessionId)
     go('chat')
     void refresh()
     return value.sessionId
-  }, [refresh, setSessionId, go])
+  }, [refresh, setSessionId, go, defaults])
 
   const send = useCallback(async (text: string, mode: 'queue' | 'steer') => {
     let id = sessionId
@@ -157,6 +163,11 @@ function Shell({ me, onLogout }: { me: Me; onLogout: () => void }) {
   const effortId = selection?.reasoningEffort ?? selectedModel?.reasoning?.defaultEffort
   const effortName = selectedModel?.reasoning?.efforts.find(e => e.id === effortId)?.name ?? effortId
   const modelLabel = selection ? `${selectedModel?.name ?? selection.model}${effortName ? ` · ${effortName}` : ''}` : 'モデル'
+
+  const proj = session.projections as { agentPreset?: string; permissions?: { currentValue?: string }; plan?: { active?: boolean } }
+  const currentMode = sessionId ? (proj.agentPreset ?? undefined) : defaults.mode
+  const currentPermission = sessionId ? proj.permissions?.currentValue : defaults.permission
+  const modeLabel = `${modeName(currentMode)}${currentPermission ? `・${PERMISSION_LABELS[currentPermission]?.short ?? currentPermission}` : ''}${proj.plan?.active ? '・計画' : ''}`
 
   const myApprovals = interactions.approvals.filter(a => a.agentId === sessionId || !sessions.some(s => s.sessionId === a.agentId))
   const myQuestions = interactions.questions.filter(q => q.agentId === sessionId || !sessions.some(s => s.sessionId === q.agentId))
@@ -199,7 +210,8 @@ function Shell({ me, onLogout }: { me: Me; onLogout: () => void }) {
             </div>
           )}
           <Composer running={session.running} disabled={connection !== 'open'} snippets={snippets}
-            modelLabel={modelLabel} context={contextUsage(session.projections)} onModel={() => setModelSheet(true)} onSend={send} onStop={stop} />
+            modelLabel={modelLabel} modeLabel={modeLabel} modeDanger={currentPermission === 'danger-full-access'} onMode={() => setModeSheet(true)}
+            context={contextUsage(session.projections)} onModel={() => setModelSheet(true)} onSend={send} onStop={stop} />
         </>
       )}
 
@@ -216,6 +228,9 @@ function Shell({ me, onLogout }: { me: Me; onLogout: () => void }) {
         onNew={() => { setMenu(false); void createSession(me.workspace) }}
         onModel={() => { setMenu(false); setModelSheet(true) }}
         inChat={view === 'chat'} onLogout={onLogout} />
+
+      <ModeSheet open={modeSheet} onOpenChange={setModeSheet} sessionId={view === 'chat' ? sessionId : null} mode={currentMode} permission={currentPermission}
+        planActive={Boolean(proj.plan?.active)} onDefaults={(next) => setDefaults({ ...defaults, ...next })} />
 
       <ModelSheet open={modelSheet} onOpenChange={(o) => { setModelSheet(o); if (o) reloadCatalog() }} sessionId={sessionId} current={selection}
         catalog={catalog} error={catalogError} onOpenSettings={() => { setModelSheet(false); go('settings') }} />

@@ -404,10 +404,13 @@ function ContextRing({ used, window }: { used: number; window: number }) {
   )
 }
 
-export function Composer({ running, disabled, modelLabel, context, snippets, onModel, onSend, onStop }: {
+export function Composer({ running, disabled, modelLabel, modeLabel, modeDanger, context, snippets, onModel, onMode, onSend, onStop }: {
   running: boolean
   disabled?: boolean
   modelLabel: string
+  modeLabel: string
+  modeDanger?: boolean
+  onMode: () => void
   context?: { used: number; window: number } | null
   snippets: string[]
   onModel: () => void
@@ -503,6 +506,10 @@ export function Composer({ running, disabled, modelLabel, context, snippets, onM
           <button onClick={() => { setMenu(!menu); vibrate(5) }} aria-label="メニュー"
             className={cn('flex size-9 shrink-0 items-center justify-center rounded-full bg-secondary', menu && 'bg-accent')}>
             <Plus className={cn('size-4 transition-transform', menu && 'rotate-45')} />
+          </button>
+          <button onClick={onMode} aria-label="モードと権限"
+            className={cn('flex h-9 shrink-0 items-center gap-1 rounded-full bg-secondary px-2.5 text-[12px] font-medium', modeDanger && 'bg-destructive/15 text-destructive')}>
+            {modeDanger ? <ShieldAlert className="size-4" /> : <ShieldCheck className="size-4" />}<span className="max-w-[5.5rem] truncate">{modeLabel}</span>
           </button>
           <button onClick={onModel} className="flex h-9 min-w-0 items-center gap-1.5 rounded-full bg-secondary px-3.5 text-[13px] font-medium">
             <span className="truncate">{modelLabel}</span>
