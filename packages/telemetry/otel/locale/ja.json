@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "OpenTelemetry 送信サービス",
-    "description": "製品イベントとセッションログのための独立したデータ送信経路を提供します。"
+    "title": "OpenTelemetry 送信",
+    "description": "製品イベントとセッションログを、それぞれ独立した経路で送信します。"
   }
 }

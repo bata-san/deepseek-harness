@@ -39,11 +39,11 @@ export const ja = {
   'skill': 'スキル',
   'subagent': 'サブエージェント',
   'loading': '読み込み中…',
-  'drill.aria': 'フォルダを参照',
-  'drill.hint': 'フォルダを参照',
+  'drill.aria': 'フォルダーを開く',
+  'drill.hint': 'フォルダーを開く',
   'drill.key': 'Tab',
-  'crumbs.aria': 'フォルダナビゲーション',
-  'suggestions.aria': '候補を表示',
+  'crumbs.aria': 'フォルダーの階層',
+  'suggestions.aria': 'トリガーの候補',
 } satisfies Record<keyof typeof en, string>
 
 /** Spanish dictionary, checked against the English keys. */

@@ -16,8 +16,8 @@ export const zh: Record<keyof typeof en, string> = {
 
 /** Japanese copy, checked against the English keys. */
 export const ja = {
-  'title': '公式モデル API 使用時にセッションログをアップロード',
-  'description': 'DeepSeek のモデルと製品の改善にご協力ください。',
+  'title': '公式モデル API の使用時にセッションログをアップロード',
+  'description': 'DeepSeek のモデルと製品の改善に役立てられます。',
   'saved': '設定を保存しました',
   'failed': '設定を保存できませんでした',
 } satisfies Record<keyof typeof en, string>

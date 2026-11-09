@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "Python PTC ランタイム",
-    "description": "CPython の子プロセスでプログラムによるツール呼び出しのコードを実行します。"
+    "description": "プログラムによるツール呼び出しのコードを CPython のサブプロセスで実行します。"
   }
 }

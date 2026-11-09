@@ -22,13 +22,13 @@ export const zh: Record<keyof typeof en, string> = {
 
 /** Japanese copy, checked against the English keys. */
 export const ja = {
-  'pinTooltip': '左サイドバーに固定',
-  'pin': '{name}をサイドバーに固定',
-  'install': '他のプラグインを探す',
+  'pinTooltip': '左サイドバーにピン留め',
+  'pin': '{name} をサイドバーにピン留め',
+  'install': 'ほかのプラグインを見る',
   'create': 'プラグインを作成',
-  'createPrompt.sidebar': '左サイドバーにエントリを持つ DSH プラグインを作成します。',
-  'createPrompt.conversation': 'DSH 会話ビュープラグインを作成します。',
-  'createPrompt.rightbar': '右サイドバーにエントリを持つ DSH プラグインを作成します。',
+  'createPrompt.sidebar': '左サイドバーに項目を持つ DSH プラグインを作成してください。',
+  'createPrompt.conversation': '会話ビューを提供する DSH プラグインを作成してください。',
+  'createPrompt.rightbar': '右サイドバーに項目を持つ DSH プラグインを作成してください。',
 } satisfies Record<keyof typeof en, string>
 
 /** Spanish dictionary, checked against the English keys. */

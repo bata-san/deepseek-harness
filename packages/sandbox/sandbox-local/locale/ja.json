@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "ローカルプロセスサンドボックス",
-    "description": "OS に応じたプロセス分離を提供し、コマンドのアクセス範囲を制限します。"
+    "title": "ローカルサンドボックス",
+    "description": "OS ごとの仕組み（bwrap、landlock、macOS Seatbelt、Windows の制限付きトークン）でプロセスを隔離します。動作を確認できない場合は実行を拒否します。"
   }
 }

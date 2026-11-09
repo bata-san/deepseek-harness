@@ -35,7 +35,8 @@ type State = {
   running: boolean
   loaded: boolean
   error: string | null
-  modelSelection?: { provider: string; model: string } | null
+  modelSelection?: { provider: string; model: string; reasoningEffort?: string } | null
+  projections: Record<string, unknown>
 }
 
 type Action =
@@ -44,6 +45,7 @@ type Action =
   | { type: 'event'; event: WireEvent }
   | { type: 'stream'; frame: StreamFrame }
   | { type: 'error'; message: string }
+  | { type: 'projections'; changes: { key: string; val: unknown }[] }
 
 type SnapshotFrame = {
   type: 'snapshot'
@@ -57,7 +59,7 @@ type StreamFrame =
   | { type: 'chunk'; attemptId: string; chunk: Record<string, unknown> }
   | { type: 'end'; attemptId: string }
 
-const initial: State = { events: [], seen: new Set(), hasMore: false, title: null, live: null, running: false, loaded: false, error: null }
+const initial: State = { events: [], seen: new Set(), hasMore: false, title: null, live: null, running: false, loaded: false, error: null, projections: {} }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -125,10 +127,8 @@ function reducer(state: State, action: Action): State {
       let next: State = { ...initial, loaded: true, hasMore: action.frame.hasMore, cwd: action.frame.header?.cwd }
       const values = action.frame.projections?.values ?? {}
       if (typeof values.title === 'string') next.title = values.title
-      const selection = isRecord(values.modelSelection) ? (values.modelSelection.next ?? values.modelSelection.lastUsed) : null
-      if (isRecord(selection) && typeof selection.provider === 'string' && typeof selection.model === 'string') {
-        next.modelSelection = { provider: selection.provider, model: selection.model }
-      }
+      next.projections = { ...values }
+      next.modelSelection = selectionOf(values.modelSelection)
       for (const record of action.frame.records ?? []) if (record?.event) next = applyEvent(next, record.event)
       next.running = runningFrom(next.events)
       return next
@@ -147,9 +147,35 @@ function reducer(state: State, action: Action): State {
     }
     case 'error':
       return { ...state, error: action.message, loaded: true }
+    case 'projections': {
+      const projections = { ...state.projections }
+      for (const change of action.changes) projections[change.key] = change.val
+      const title = typeof projections.title === 'string' ? projections.title : state.title
+      return { ...state, projections, title, modelSelection: selectionOf(projections.modelSelection) ?? state.modelSelection }
+    }
     default:
       return state
   }
+}
+
+function selectionOf(value: unknown): State['modelSelection'] {
+  if (!isRecord(value)) return null
+  const selection = value.next ?? value.lastUsed
+  if (!isRecord(selection) || typeof selection.provider !== 'string' || typeof selection.model !== 'string') return null
+  return {
+    provider: selection.provider,
+    model: selection.model,
+    ...(typeof selection.reasoningEffort === 'string' ? { reasoningEffort: selection.reasoningEffort } : {}),
+  }
+}
+
+/** コンテキストの使用状況（直近リクエストのトークン数とモデルのコンテキストウィンドウ） */
+export function contextUsage(projections: Record<string, unknown>): { used: number; window: number } | null {
+  const pressure = projections.contextPressure
+  if (!isRecord(pressure)) return null
+  const used = typeof pressure.pressureTokens === 'number' ? pressure.pressureTokens : typeof pressure.projectedTokens === 'number' ? pressure.projectedTokens : 0
+  const window = typeof pressure.contextWindow === 'number' ? pressure.contextWindow : 0
+  return window > 0 ? { used, window } : null
 }
 
 function textOf(content: unknown): string {
@@ -254,7 +280,17 @@ export function useSession(sessionId: string | null) {
       },
       onError: (error: RemoteError) => dispatch({ type: 'error', message: error.message }),
     })
-    return close
+    // モデル選択・コンテキスト使用量などの集計値はプロジェクションのストリームで更新される
+    const closeProjections = mux.stream('session/observeProjections', { request: { sessionId } }, {
+      onItem: (value) => {
+        if (gen !== generation.current || !isRecord(value) || value.type !== 'projection' || !Array.isArray(value.changes)) return
+        dispatch({ type: 'projections', changes: value.changes as { key: string; val: unknown }[] })
+      },
+    })
+    return () => {
+      close()
+      closeProjections()
+    }
   }, [sessionId])
   const items = useMemo(() => buildItems(state.events, state.live), [state.events, state.live])
   return { ...state, items }

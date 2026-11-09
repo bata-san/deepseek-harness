@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "Office から PDF への変換",
-    "description": "Word、Excel、PowerPoint などの文書をプレビュー用の PDF に変換します。"
+    "title": "Office の PDF 変換",
+    "description": "Office 文書を PDF に変換します。キューの上限とキャッシュを備えた共有サービスです。"
   }
 }

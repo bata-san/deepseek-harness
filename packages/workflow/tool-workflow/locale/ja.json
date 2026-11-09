@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "ワークフローツール",
-    "description": "AI が JavaScript スクリプトを作成、実行し、複数のツール操作を組み合わせられます。"
+    "description": "モデルが JavaScript のスクリプトでツール操作を組み合わせて実行できるようにします。"
   }
 }

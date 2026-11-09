@@ -31,11 +31,11 @@ const zh = {
 } satisfies typeof en
 
 const ja = {
-  instruction: '{permission}を許可するには、{application}を上の一覧にドラッグしてください',
+  instruction: '{permission}を許可するには、{application} を上のリストにドラッグしてください',
   backLabel: '戻る',
   finderLabel: 'Finder で表示',
-  unavailableMessage: 'アプリが見つかりません。Computer Use を再度有効にしてください。',
-  settingsMessage: 'システム設定 > プライバシーとセキュリティ > {permission} を開いてください。',
+  unavailableMessage: 'アプリケーションを利用できません。Computer Use を有効にし直してから再試行してください。',
+  settingsMessage: '「システム設定」>「プライバシーとセキュリティ」>「{permission}」を手動で開いてください。',
   accessibility: 'アクセシビリティ',
   screenRecording: '画面収録',
 } satisfies typeof en

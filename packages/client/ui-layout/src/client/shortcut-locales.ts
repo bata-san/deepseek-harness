@@ -5,7 +5,7 @@ export const en: Record<keyof typeof zh, string> = { toggle: 'Toggle left sideba
 
 /** Japanese copy, checked against the English keys. */
 export const ja = {
-  'toggle': '左サイドバーを切り替え',
+  'toggle': '左サイドバーの表示切り替え',
 } satisfies Record<keyof typeof en, string>
 
 /** Spanish dictionary, checked against the English keys. */

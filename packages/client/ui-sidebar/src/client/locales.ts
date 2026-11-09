@@ -33,8 +33,8 @@ export const en = {
 
 /** Japanese copy, checked against the English keys. */
 export const ja = {
-  'panels.unpinTooltip': '左サイドバーから固定解除',
-  'panels.unpin': '{name}をサイドバーから固定解除',
+  'panels.unpinTooltip': '左サイドバーへの固定を解除',
+  'panels.unpin': '{name} のサイドバーへの固定を解除',
   'session.new': '新規セッション',
   'session.new.label': '新規セッション',
   'toggle.open': 'サイドバーを開く',

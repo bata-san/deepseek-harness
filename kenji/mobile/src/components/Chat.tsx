@@ -76,14 +76,14 @@ export function MessageList({ items, running, status, emptyHint }: { items: Chat
 
   return (
     <div className="relative min-h-0 flex-1">
-      <div ref={scroller} onScroll={onScroll} className="scroll-touch h-full overflow-y-auto px-5 pb-6 pt-4">
+      <div ref={scroller} onScroll={onScroll} className="scroll-touch h-full overflow-y-auto px-4 pb-6 pt-3">
         {rows.length === 0 && !running
           ? <div className="flex h-full items-center justify-center px-6 text-center">{emptyHint}</div>
           : (
-            <div className="mx-auto flex max-w-3xl flex-col gap-5">
+            <div className="mx-auto flex max-w-3xl flex-col gap-4">
               {rows.map(row => <ChatRow key={row.key} row={row} />)}
               {running && (
-                <div className="flex items-center gap-2.5 text-[15px]">
+                <div className="flex items-center gap-2.5 text-[14px]">
                   <WorkingDots />
                   <span className="font-medium text-brand">{status ?? '作業中…'}</span>
                 </div>
@@ -120,7 +120,7 @@ const ChatRow = memo(function ChatRow({ row }: { row: Row }) {
   if (item.kind === 'user') {
     return (
       <div className="flex justify-end pl-12">
-        <div className="max-w-full whitespace-pre-wrap break-words rounded-3xl bg-secondary px-4 py-2.5 text-[16px] leading-relaxed text-foreground">
+        <div className="max-w-full whitespace-pre-wrap break-words rounded-3xl bg-secondary px-3.5 py-2 text-[15px] leading-relaxed text-foreground">
           {item.text || (item.images > 0 ? `画像 ${item.images} 枚` : '')}
           {item.text && item.images > 0 && <div className="mt-1 text-xs opacity-70">＋画像 {item.images} 枚</div>}
         </div>
@@ -129,7 +129,7 @@ const ChatRow = memo(function ChatRow({ row }: { row: Row }) {
   }
   if (item.kind === 'error') {
     return (
-      <div className="flex gap-2.5 rounded-2xl bg-destructive/10 p-3.5 text-[15px]">
+      <div className="flex gap-2.5 rounded-2xl bg-destructive/10 p-3 text-[14px]">
         <AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" />
         <div className="min-w-0 break-words leading-relaxed text-foreground/90">{explainError(item.message, item.code)}</div>
       </div>
@@ -148,7 +148,7 @@ function explainError(message: string, code?: string): string {
 
 const Markdown = memo(function Markdown({ text, streaming }: { text: string; streaming?: boolean }) {
   return (
-    <div className={cn('prose-chat text-[16px] leading-[1.8]', streaming && 'after:ml-0.5 after:inline-block after:h-4 after:w-1.5 after:animate-pulse after:bg-foreground/60 after:align-middle')}>
+    <div className={cn('prose-chat text-[15px] leading-[1.75]', streaming && 'after:ml-0.5 after:inline-block after:h-4 after:w-1.5 after:animate-pulse after:bg-foreground/60 after:align-middle')}>
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ pre: CodeBlock, a: ({ ...props }) => <a {...props} target="_blank" rel="noreferrer" /> }}>
         {text}
       </ReactMarkdown>
@@ -181,7 +181,7 @@ function Reasoning({ text, live }: { text: string; live?: boolean }) {
   const [open, setOpen] = useState(false)
   return (
     <div>
-      <button onClick={() => setOpen(!open)} className="flex items-center gap-1.5 text-left text-[15px] text-muted-foreground">
+      <button onClick={() => setOpen(!open)} className="flex items-center gap-1.5 text-left text-[14px] text-muted-foreground">
         <Brain className="size-4" />
         <span>{live ? '思考中…' : '思考しました'}</span>
         <ChevronRight className={cn('size-4 transition-transform', open && 'rotate-90')} />
@@ -228,7 +228,7 @@ function ToolGroup({ tools, live }: { tools: ToolPart[]; live: boolean }) {
   const failed = tools.filter(t => t.result?.isError).length
   return (
     <div>
-      <button onClick={() => { setOpen(!open); vibrate(5) }} className="flex max-w-full items-center gap-1.5 text-left text-[15px] text-muted-foreground">
+      <button onClick={() => { setOpen(!open); vibrate(5) }} className="flex max-w-full items-center gap-1.5 text-left text-[14px] text-muted-foreground">
         {pending && live ? <Loader2 className="size-4 shrink-0 animate-spin" /> : null}
         <span className="truncate">{pending ? (live ? '実行中' : groupLabel(tools)) : groupLabel(tools)}</span>
         {failed > 0 && <span className="shrink-0 text-destructive">（失敗 {failed}）</span>}
@@ -374,10 +374,41 @@ function speechCtor(): (new () => SpeechRecognitionLike) | null {
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null
 }
 
-export function Composer({ running, disabled, modelLabel, snippets, onModel, onSend, onStop }: {
+function compact(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n >= 10_000_000 ? 0 : 1)}M`
+  if (n >= 1000) return `${Math.round(n / 1000)}k`
+  return String(n)
+}
+
+/** コンテキスト使用率のリング。タップで内訳を表示 */
+function ContextRing({ used, window }: { used: number; window: number }) {
+  const [open, setOpen] = useState(false)
+  const ratio = Math.min(1, used / window)
+  const r = 9, c = 2 * Math.PI * r
+  const color = ratio > 0.85 ? 'hsl(var(--destructive))' : ratio > 0.6 ? 'hsl(var(--warning))' : 'hsl(var(--muted-foreground))'
+  return (
+    <div className="relative">
+      <button onClick={() => { setOpen(!open); vibrate(5) }} aria-label="コンテキスト使用量" className="flex size-9 items-center justify-center rounded-full">
+        <svg viewBox="0 0 24 24" className="size-6 -rotate-90">
+          <circle cx="12" cy="12" r={r} fill="none" stroke="hsl(var(--border))" strokeWidth="3" />
+          <circle cx="12" cy="12" r={r} fill="none" stroke={color} strokeWidth="3" strokeLinecap="round" strokeDasharray={`${c * ratio} ${c}`} />
+        </svg>
+      </button>
+      {open && (
+        <div className="absolute bottom-11 right-0 z-20 w-max rounded-xl border bg-card px-3 py-2 text-xs shadow-xl">
+          <div className="font-medium">コンテキスト {Math.round(ratio * 100)}%</div>
+          <div className="text-muted-foreground">{compact(used)} / {compact(window)} トークン</div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+export function Composer({ running, disabled, modelLabel, context, snippets, onModel, onSend, onStop }: {
   running: boolean
   disabled?: boolean
   modelLabel: string
+  context?: { used: number; window: number } | null
   snippets: string[]
   onModel: () => void
   onSend: (text: string, mode: 'queue' | 'steer') => Promise<void>
@@ -447,16 +478,16 @@ export function Composer({ running, disabled, modelLabel, snippets, onModel, onS
           <div className="px-4 pb-1 pt-3 text-xs font-medium text-muted-foreground">定型文</div>
           {snippets.map(snippet => (
             <button key={snippet} disabled={disabled || sending} onClick={() => void send(snippet)}
-              className="block w-full px-4 py-3 text-left text-[15px] active:bg-accent">{snippet}</button>
+              className="block w-full px-4 py-2.5 text-left text-[14px] active:bg-accent">{snippet}</button>
           ))}
           {running && (
-            <button onClick={() => { setSteer(!steer); setMenu(false); vibrate() }} className="flex w-full items-center gap-2 border-t px-4 py-3 text-left text-[15px] active:bg-accent">
+            <button onClick={() => { setSteer(!steer); setMenu(false); vibrate() }} className="flex w-full items-center gap-2 border-t px-4 py-2.5 text-left text-[14px] active:bg-accent">
               <Zap className={cn('size-4', steer && 'text-warning')} />{steer ? '割り込みモードを解除' : '割り込んで指示する'}
             </button>
           )}
         </div>
       )}
-      <div className={cn('mx-auto max-w-3xl rounded-[28px] border bg-card px-2 pb-2 pt-1 shadow-sm', steer && 'border-warning/60')}>
+      <div className={cn('mx-auto max-w-3xl rounded-[24px] border bg-card px-1.5 pb-1.5 pt-0.5 shadow-sm', steer && 'border-warning/60')}>
         <textarea ref={area} rows={1} value={text} disabled={disabled}
           onChange={e => setText(e.target.value)}
           onFocus={() => setMenu(false)}
@@ -467,29 +498,30 @@ export function Composer({ running, disabled, modelLabel, snippets, onModel, onS
             }
           }}
           placeholder={disabled ? '接続中…' : running ? (steer ? '割り込んで指示（今の作業に反映）…' : 'メッセージをキューに追加…') : 'メッセージを入力…'}
-          className="block max-h-[200px] w-full resize-none bg-transparent px-3 pb-2 pt-3 text-[17px] leading-7 outline-none placeholder:text-muted-foreground" />
+          className="block max-h-[200px] w-full resize-none bg-transparent px-3 pb-1.5 pt-2.5 text-[16px] leading-6 outline-none placeholder:text-muted-foreground" />
         <div className="flex items-center gap-2">
           <button onClick={() => { setMenu(!menu); vibrate(5) }} aria-label="メニュー"
-            className={cn('flex size-11 shrink-0 items-center justify-center rounded-full bg-secondary', menu && 'bg-accent')}>
-            <Plus className={cn('size-5 transition-transform', menu && 'rotate-45')} />
+            className={cn('flex size-9 shrink-0 items-center justify-center rounded-full bg-secondary', menu && 'bg-accent')}>
+            <Plus className={cn('size-4 transition-transform', menu && 'rotate-45')} />
           </button>
-          <button onClick={onModel} className="flex h-11 min-w-0 items-center gap-1.5 rounded-full bg-secondary px-4 text-[15px] font-medium">
+          <button onClick={onModel} className="flex h-9 min-w-0 items-center gap-1.5 rounded-full bg-secondary px-3.5 text-[13px] font-medium">
             <span className="truncate">{modelLabel}</span>
           </button>
           <div className="flex-1" />
+          {context && <ContextRing used={context.used} window={context.window} />}
           {voice && (
             <button onClick={toggleVoice} aria-label="音声入力"
-              className={cn('flex size-11 shrink-0 items-center justify-center rounded-full bg-secondary', listening && 'bg-destructive text-destructive-foreground')}>
-              <Mic className="size-5" />
+              className={cn('flex size-9 shrink-0 items-center justify-center rounded-full bg-secondary', listening && 'bg-destructive text-destructive-foreground')}>
+              <Mic className="size-4" />
             </button>
           )}
           {showStop
-            ? <button onClick={() => { vibrate(20); onStop() }} aria-label="停止" className="flex size-11 shrink-0 items-center justify-center rounded-full bg-secondary">
+            ? <button onClick={() => { vibrate(20); onStop() }} aria-label="停止" className="flex size-9 shrink-0 items-center justify-center rounded-full bg-secondary">
                 <Square className="size-4 fill-current" />
               </button>
             : <button onClick={() => void send()} disabled={!text.trim() || sending || disabled} aria-label="送信"
-                className="flex size-11 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground disabled:opacity-30">
-                {sending ? <Loader2 className="size-5 animate-spin" /> : <ArrowUp className="size-5" />}
+                className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground disabled:opacity-30">
+                {sending ? <Loader2 className="size-4 animate-spin" /> : <ArrowUp className="size-4" />}
               </button>}
         </div>
       </div>

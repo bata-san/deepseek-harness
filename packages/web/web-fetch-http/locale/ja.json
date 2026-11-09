@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "公開 Web ページ取得",
-    "description": "ログイン不要の HTTP または HTTPS の Web ページを読み取ります。"
+    "title": "公開 Web ページの取得",
+    "description": "ログイン不要の HTTP / HTTPS の Web ページの内容を読み取ります。"
   }
 }

@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "Claude Code フック",
-    "description": "Harness のインターセプトポイントで、Claude Code の hooks.json または settings に設定されたフックを実行します。"
+    "description": "Claude Code の hooks.json または設定で定義されたフックを、Harness の割り込みポイントで実行します。"
   }
 }

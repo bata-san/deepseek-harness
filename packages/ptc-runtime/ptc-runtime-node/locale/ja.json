@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "Node PTC ランタイム",
-    "description": "サンドボックス内の Node プロセスで、ツール呼び出し用のコードを実行します。"
+    "description": "Node で PTC のコードを実行します。非同期関数、REPL、VM スクリプトの各方式に対応し、状態を保持することもできます。"
   }
 }

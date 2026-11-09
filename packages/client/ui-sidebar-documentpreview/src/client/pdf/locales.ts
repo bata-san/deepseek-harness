@@ -42,13 +42,13 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 export const ja = {
   ...zoomJa,
   'title': 'PDF',
-  'pageImage': 'PDFページ {page}',
-  'loading': 'ドキュメントをレンダリング中...',
-  'rendering': 'ページをレンダリング中…',
-  'failed': 'PDFを表示できません: {message}',
-  'password': 'このPDFにはパスワードが必要です。パスワード保護されたプレビューはサポートされていません。',
-  'workerFailed': 'PDFのレンダリング処理を続行できませんでした。再試行してください。',
-  'unsupported': 'PDFのプレビューには完全なファイル内容が必要です。',
+  'pageImage': 'PDF の {page} ページ',
+  'loading': 'ドキュメントを描画中…',
+  'rendering': 'ページを描画中…',
+  'failed': 'PDF を表示できません: {message}',
+  'password': 'この PDF はパスワードで保護されています。パスワード付きの PDF はプレビューに対応していません。',
+  'workerFailed': 'PDF の描画処理を続行できませんでした。再試行してください。',
+  'unsupported': 'PDF をプレビューするには、ファイル全体の内容が必要です。',
   'retry': '再試行',
 } satisfies Record<keyof typeof en, string>
 

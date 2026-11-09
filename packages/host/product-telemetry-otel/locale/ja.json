@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "製品利用イベント送信",
-    "description": "OpenTelemetry を通じて、指定された製品利用イベントを設定済みのサービスに送信します。"
+    "title": "利用状況の送信",
+    "description": "明示的に定義された製品の利用イベントを、OpenTelemetry の HTTP ログとして送信します。"
   }
 }

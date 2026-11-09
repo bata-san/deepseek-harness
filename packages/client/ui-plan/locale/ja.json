@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "計画レビュー UI",
-    "description": "計画モードの操作、計画カード、Markdown プレビューを表示します。"
+    "title": "プランレビュー UI",
+    "description": "プランモードの操作、プランカード、Markdown プレビューを表示します。"
   }
 }

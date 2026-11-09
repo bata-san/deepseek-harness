@@ -15,7 +15,7 @@ export const en = {
 
 /** Japanese copy, checked against the English keys. */
 export const ja = {
-  'language.title': '言語',
+  'language.title': '表示言語',
 } satisfies Record<keyof typeof en, string>
 
 /** Spanish dictionary, checked against the English keys. */

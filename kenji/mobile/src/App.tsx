@@ -9,14 +9,34 @@ import { Input } from '@/components/ui/input'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
 import { DEFAULT_SNIPPETS, titleOf, useConnection, useInteractions, useLocal, useSessions, type SessionSummary } from '@/lib/app'
 import { call, fetchMe, logout, mux, newId, type Me } from '@/lib/dsh'
-import { useSession } from '@/lib/session'
+import { contextUsage, useSession } from '@/lib/session'
 import { cn, relativeTime, shortPath, vibrate } from '@/lib/utils'
 import { Login } from '@/pages/Login'
 import { Plugins } from '@/pages/Plugins'
 import { Settings } from '@/pages/Settings'
 
 type View = 'home' | 'chat' | 'plugins' | 'settings'
-type Catalog = { default: { provider: string; model: string }; groups: { id: string; name: string; models: { id: string; name: string; description?: string }[] }[] }
+type Effort = { id: string; name: string; description?: string }
+type CatalogModel = { id: string; name: string; description?: string; reasoning?: { efforts: Effort[]; defaultEffort?: string } }
+type Catalog = { default: { provider: string; model: string; reasoningEffort?: string }; groups: { id: string; name: string; models: CatalogModel[] }[] }
+type Selection = { provider: string; model: string; reasoningEffort?: string }
+
+/** モデル一覧を一度だけ取得して共有する（思考レベルの名前表示にも使う） */
+function useCatalog(trigger: unknown) {
+  const [catalog, setCatalog] = useState<Catalog | null>(null)
+  const [error, setError] = useState('')
+  const load = useCallback(() => {
+    setError('')
+    call<Catalog>('session/modelCatalog').then(setCatalog).catch(e => setError((e as Error).message))
+  }, [])
+  useEffect(() => { load() }, [load, trigger])
+  return { catalog, error, reload: load }
+}
+
+function findModel(catalog: Catalog | null, sel: Selection | null): CatalogModel | undefined {
+  if (!catalog || !sel) return undefined
+  return catalog.groups.find(g => g.id === sel.provider)?.models.find(m => m.id === sel.model)
+}
 
 export function App() {
   const [me, setMe] = useState<Me | null | undefined>(undefined)
@@ -53,8 +73,8 @@ function TopBar({ left, title, subtitle, right, onTitle }: {
     <header className="grid shrink-0 grid-cols-[3rem_1fr_3rem] items-center px-2 pb-2 pt-[max(env(safe-area-inset-top),0.5rem)]">
       <div className="flex justify-start">{left}</div>
       <button onClick={onTitle} disabled={!onTitle} className="flex min-w-0 flex-col items-center px-1 text-center">
-        <span className="max-w-full truncate text-[17px] font-semibold leading-tight">{title}</span>
-        {subtitle && <span className="flex max-w-full items-center gap-1 truncate text-[13px] text-muted-foreground">{subtitle}</span>}
+        <span className="max-w-full truncate text-[16px] font-semibold leading-tight">{title}</span>
+        {subtitle && <span className="flex max-w-full items-center gap-1 truncate text-[12px] text-muted-foreground">{subtitle}</span>}
       </button>
       <div className="flex justify-end">{right}</div>
     </header>
@@ -131,6 +151,13 @@ function Shell({ me, onLogout }: { me: Me; onLogout: () => void }) {
     if (sessionId) void call('session/cancel', { request: { sessionId } }).catch(() => undefined)
   }, [sessionId])
 
+  const { catalog, error: catalogError, reload: reloadCatalog } = useCatalog(view)
+  const selection: Selection | null = session.modelSelection ?? catalog?.default ?? null
+  const selectedModel = findModel(catalog, selection)
+  const effortId = selection?.reasoningEffort ?? selectedModel?.reasoning?.defaultEffort
+  const effortName = selectedModel?.reasoning?.efforts.find(e => e.id === effortId)?.name ?? effortId
+  const modelLabel = selection ? `${selectedModel?.name ?? selection.model}${effortName ? ` · ${effortName}` : ''}` : 'モデル'
+
   const myApprovals = interactions.approvals.filter(a => a.agentId === sessionId || !sessions.some(s => s.sessionId === a.agentId))
   const myQuestions = interactions.questions.filter(q => q.agentId === sessionId || !sessions.some(s => s.sessionId === q.agentId))
   const otherPending = interactions.approvals.length + interactions.questions.length - myApprovals.length - myQuestions.length
@@ -149,7 +176,7 @@ function Shell({ me, onLogout }: { me: Me; onLogout: () => void }) {
       {view === 'chat' && (
         <>
           <TopBar
-            left={<IconButton label="戻る" onClick={back}><ArrowLeft className="size-6" /></IconButton>}
+            left={<IconButton label="戻る" onClick={back}><ArrowLeft className="size-5" /></IconButton>}
             title={sessionId ? (session.title ?? titleOf(current)) : '新しいセッション'}
             subtitle={<>{offline || <><Folder className="size-3 shrink-0" /><span className="truncate">{shortPath(session.cwd ?? current?.cwd ?? me.workspace ?? '', interactions.home) || 'ワークスペース'}</span></>}</>}
             onTitle={() => setModelSheet(true)}
@@ -172,13 +199,13 @@ function Shell({ me, onLogout }: { me: Me; onLogout: () => void }) {
             </div>
           )}
           <Composer running={session.running} disabled={connection !== 'open'} snippets={snippets}
-            modelLabel={session.modelSelection?.model ?? 'モデル'} onModel={() => setModelSheet(true)} onSend={send} onStop={stop} />
+            modelLabel={modelLabel} context={contextUsage(session.projections)} onModel={() => setModelSheet(true)} onSend={send} onStop={stop} />
         </>
       )}
 
       {(view === 'plugins' || view === 'settings') && (
         <>
-          <TopBar left={<IconButton label="戻る" onClick={back}><ArrowLeft className="size-6" /></IconButton>}
+          <TopBar left={<IconButton label="戻る" onClick={back}><ArrowLeft className="size-5" /></IconButton>}
             title={view === 'plugins' ? 'プラグイン' : '設定'} />
           <main className="min-h-0 flex-1">{view === 'plugins' ? <Plugins /> : <Settings me={me} onLogout={onLogout} />}</main>
         </>
@@ -190,8 +217,8 @@ function Shell({ me, onLogout }: { me: Me; onLogout: () => void }) {
         onModel={() => { setMenu(false); setModelSheet(true) }}
         inChat={view === 'chat'} onLogout={onLogout} />
 
-      <ModelSheet open={modelSheet} onOpenChange={setModelSheet} sessionId={sessionId} current={session.modelSelection ?? null}
-        onOpenSettings={() => { setModelSheet(false); go('settings') }} />
+      <ModelSheet open={modelSheet} onOpenChange={(o) => { setModelSheet(o); if (o) reloadCatalog() }} sessionId={sessionId} current={selection}
+        catalog={catalog} error={catalogError} onOpenSettings={() => { setModelSheet(false); go('settings') }} />
     </div>
   )
 }
@@ -230,7 +257,7 @@ function Home({ me, sessions, loading, pending, home, offline, onMenu, onRefresh
   return (
     <>
       <TopBar
-        left={<IconButton label="メニュー" onClick={onMenu}><Menu className="size-6" /></IconButton>}
+        left={<IconButton label="メニュー" onClick={onMenu}><Menu className="size-5" /></IconButton>}
         title="Harness"
         subtitle={offline || undefined}
         right={<IconButton label="再読み込み" onClick={onRefresh}><RefreshCw className={cn('size-5', loading && 'animate-spin')} /></IconButton>}
@@ -245,8 +272,8 @@ function Home({ me, sessions, loading, pending, home, offline, onMenu, onRefresh
           </div>
         )}
         <div className="mb-1 mt-3 flex items-center justify-between">
-          <span className="text-[15px] text-muted-foreground">セッション</span>
-          <button onClick={() => { setFilter(nextFilter[filter]); vibrate(5) }} className="flex items-center gap-1 text-[15px] text-muted-foreground">
+          <span className="text-[13px] text-muted-foreground">セッション</span>
+          <button onClick={() => { setFilter(nextFilter[filter]); vibrate(5) }} className="flex items-center gap-1 text-[13px] text-muted-foreground">
             {filterLabel}<ChevronDown className="size-4" />
           </button>
         </div>
@@ -254,20 +281,20 @@ function Home({ me, sessions, loading, pending, home, offline, onMenu, onRefresh
           {list.map(s => {
             const waiting = pending.has(s.sessionId)
             return (
-              <button key={s.sessionId} onClick={() => onOpen(s.sessionId)} className="-mx-2 flex items-start gap-3.5 rounded-2xl px-2 py-3.5 text-left active:bg-accent">
-                <span className="mt-[7px] flex size-3 shrink-0 items-center justify-center">
+              <button key={s.sessionId} onClick={() => onOpen(s.sessionId)} className="-mx-2 flex items-start gap-3 rounded-2xl px-2 py-3 text-left active:bg-accent">
+                <span className="mt-[5px] flex size-3 shrink-0 items-center justify-center">
                   {waiting
                     ? <span className="size-2.5 rounded-full bg-warning" />
                     : s.running ? <span className="size-2.5 animate-pulse rounded-full bg-brand" /> : <span className="size-2.5 rounded-full border-2 border-muted-foreground/60" />}
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[18px] font-semibold leading-snug">{titleOf(s)}</span>
-                  <span className="mt-0.5 flex items-center gap-1.5 truncate text-[14px] text-muted-foreground">
+                  <span className="block truncate text-[16px] font-semibold leading-snug">{titleOf(s)}</span>
+                  <span className="mt-0.5 flex items-center gap-1.5 truncate text-[13px] text-muted-foreground">
                     {waiting ? <><ShieldAlert className="size-3.5 shrink-0 text-warning" /><span className="text-warning">応答待ち</span></>
                       : <><Folder className="size-3.5 shrink-0" /><span className="truncate">{shortPath(s.cwd, home) || 'ワークスペース'}</span></>}
                   </span>
                 </span>
-                <span className="shrink-0 pt-0.5 text-[14px] text-muted-foreground">{relativeTime(s.updatedAt)}</span>
+                <span className="shrink-0 pt-0.5 text-[13px] text-muted-foreground">{relativeTime(s.updatedAt)}</span>
               </button>
             )
           })}
@@ -282,12 +309,12 @@ function Home({ me, sessions, loading, pending, home, offline, onMenu, onRefresh
       {/* 下部の操作 */}
       <div className="pointer-events-none fixed inset-x-0 bottom-0 flex items-center justify-between px-5 pb-[max(env(safe-area-inset-bottom),1.25rem)]">
         <button aria-label="検索" onClick={() => { setSearching(!searching); setQuery(''); vibrate(5) }}
-          className="pointer-events-auto flex size-14 items-center justify-center rounded-full border bg-card shadow-lg">
-          {searching ? <X className="size-6" /> : <Search className="size-6" />}
+          className="pointer-events-auto flex size-12 items-center justify-center rounded-full border bg-card shadow-lg">
+          {searching ? <X className="size-5" /> : <Search className="size-5" />}
         </button>
         <button onClick={() => onCreate(me.workspace ?? null)} onContextMenu={(e) => { e.preventDefault(); setFolderSheet(true) }}
-          className="pointer-events-auto flex h-14 items-center gap-2 rounded-full bg-primary px-6 text-[17px] font-semibold text-primary-foreground shadow-lg active:scale-[0.98]">
-          <Plus className="size-6" />新規セッション
+          className="pointer-events-auto flex h-12 items-center gap-2 rounded-full bg-primary px-5 text-[15px] font-semibold text-primary-foreground shadow-lg active:scale-[0.98]">
+          <Plus className="size-5" />新規セッション
         </button>
       </div>
 
@@ -306,7 +333,7 @@ function Home({ me, sessions, loading, pending, home, offline, onMenu, onRefresh
 function EmptyHint({ me }: { me: Me }) {
   return (
     <div className="flex flex-col items-center gap-2 text-muted-foreground">
-      <div className="text-[19px] font-semibold text-foreground">何をしましょうか？</div>
+      <div className="text-[17px] font-semibold text-foreground">何をしましょうか？</div>
       <div className="text-sm leading-relaxed">
         PC 上のエージェントにそのまま指示できます。
         {me.workspace && <><br /><span className="font-mono text-xs">{shortPath(me.workspace)}</span></>}
@@ -325,7 +352,7 @@ function MenuSheet({ open, onOpenChange, me, inChat, onNavigate, onNew, onModel,
   onModel: () => void
   onLogout: () => void
 }) {
-  const item = 'flex w-full items-center gap-3.5 px-5 py-3.5 text-left text-[16px] active:bg-accent'
+  const item = 'flex w-full items-center gap-3.5 px-5 py-3 text-left text-[15px] active:bg-accent'
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent title={me.username} description={me.role}>
@@ -343,35 +370,34 @@ function MenuSheet({ open, onOpenChange, me, inChat, onNavigate, onNew, onModel,
   )
 }
 
-function ModelSheet({ open, onOpenChange, sessionId, current, onOpenSettings }: {
+function ModelSheet({ open, onOpenChange, sessionId, current, catalog, error: loadError, onOpenSettings }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   sessionId: string | null
-  current: { provider: string; model: string } | null
+  current: Selection | null
+  catalog: Catalog | null
+  error: string
   onOpenSettings: () => void
 }) {
-  const [catalog, setCatalog] = useState<Catalog | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState('')
+  const [query, setQuery] = useState('')
+  const currentModel = findModel(catalog, current)
+  const efforts = currentModel?.reasoning?.efforts ?? []
+  const activeEffort = current?.reasoningEffort ?? currentModel?.reasoning?.defaultEffort
 
-  useEffect(() => {
-    if (!open) return
-    setError('')
-    call<Catalog>('session/modelCatalog').then(setCatalog).catch(e => setError((e as Error).message))
-  }, [open])
-
-  const active = current ?? catalog?.default ?? null
-
-  const select = async (provider: string, model: string) => {
+  const select = async (provider: string, model: CatalogModel, reasoningEffort?: string, close = true) => {
     if (!sessionId) {
       setError('先にセッションを開始してください')
       return
     }
-    setBusy(`${provider}/${model}`)
+    const effort = reasoningEffort ?? (model.reasoning?.efforts.some(e => e.id === activeEffort) ? activeEffort : model.reasoning?.defaultEffort)
+    setBusy(`${provider}/${model.id}/${reasoningEffort ?? ''}`)
+    setError('')
     try {
-      await call('session/selectModel', { request: { sessionId, provider, model } })
+      await call('session/selectModel', { request: { sessionId, provider, model: model.id, ...(effort ? { reasoningEffort: effort } : {}) } })
       vibrate()
-      onOpenChange(false)
+      if (close) onOpenChange(false)
     } catch (e) {
       setError((e as Error).message)
     } finally {
@@ -379,38 +405,71 @@ function ModelSheet({ open, onOpenChange, sessionId, current, onOpenSettings }: 
     }
   }
 
+  const q = query.trim().toLowerCase()
+  const groups = (catalog?.groups ?? []).map(g => ({ ...g, models: g.models.filter(m => !q || m.id.toLowerCase().includes(q) || m.name.toLowerCase().includes(q) || g.name.toLowerCase().includes(q)) })).filter(g => g.models.length)
+  const total = (catalog?.groups ?? []).reduce((n, g) => n + g.models.length, 0)
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent title="モデル" description="このセッションで使うモデル">
+      <SheetContent title="モデル" description={currentModel ? `${currentModel.name}` : 'このセッションで使うモデル'}>
         <div className="scroll-touch min-h-0 overflow-y-auto px-3 pb-6">
-          {!catalog && !error && <div className="flex justify-center py-8"><Loader2 className="animate-spin text-muted-foreground" /></div>}
-          {error && <p className="mb-2 rounded-xl bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
-          {catalog && catalog.groups.length === 0 && (
-            <div className="flex flex-col items-center gap-3 py-6 text-center text-[15px] text-muted-foreground">
+          {(error || loadError) && <p className="mb-2 rounded-xl bg-destructive/10 px-3 py-2 text-sm text-destructive">{error || loadError}</p>}
+          {currentModel && efforts.length > 0 && current && (
+            <div className="mb-4">
+              <div className="px-1 pb-1.5 text-xs font-medium text-muted-foreground">思考レベル</div>
+              <div className="no-scrollbar flex gap-1.5 overflow-x-auto">
+                {efforts.map(effort => {
+                  const active = effort.id === activeEffort
+                  const key = `${current.provider}/${currentModel.id}/${effort.id}`
+                  return (
+                    <button key={effort.id} onClick={() => void select(current.provider, currentModel, effort.id, false)} title={effort.description}
+                      className={cn('flex shrink-0 items-center gap-1 rounded-full border px-3.5 py-1.5 text-[13px]', active ? 'border-transparent bg-primary text-primary-foreground' : 'bg-card')}>
+                      {busy === key && <Loader2 className="size-3 animate-spin" />}{effort.name || effort.id}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+          {!catalog && !loadError && <div className="flex justify-center py-8"><Loader2 className="animate-spin text-muted-foreground" /></div>}
+          {catalog && total === 0 && (
+            <div className="flex flex-col items-center gap-3 py-6 text-center text-[14px] text-muted-foreground">
               使えるモデルがありません。API キーを登録してください。
               <Button onClick={onOpenSettings}>AI モデルを設定</Button>
             </div>
           )}
-          {catalog?.groups.map(group => (
+          {total > 8 && (
+            <div className="relative mb-3">
+              <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input value={query} onChange={e => setQuery(e.target.value)} placeholder="モデルを検索" className="h-10 rounded-full pl-9" />
+            </div>
+          )}
+          {groups.map(group => (
             <div key={group.id} className="mb-3">
               <div className="px-2 pb-1 text-xs font-medium text-muted-foreground">{group.name}</div>
               <div className="flex flex-col overflow-hidden rounded-2xl bg-card">
                 {group.models.map(model => {
-                  const selected = active?.provider === group.id && active?.model === model.id
+                  const selected = current?.provider === group.id && current?.model === model.id
                   return (
-                    <button key={model.id} onClick={() => void select(group.id, model.id)}
-                      className="flex items-center gap-2 border-b px-4 py-3 text-left last:border-b-0 active:bg-accent">
+                    <button key={model.id} onClick={() => void select(group.id, model)}
+                      className="flex items-center gap-2 border-b px-4 py-2.5 text-left last:border-b-0 active:bg-accent">
                       <div className="min-w-0 flex-1">
-                        <div className="truncate text-[15px]">{model.name || model.id}</div>
-                        {model.description && <div className="truncate text-xs text-muted-foreground">{model.description}</div>}
+                        <div className="truncate text-[14px]">{model.name || model.id}</div>
+                        <div className="truncate text-[11px] text-muted-foreground">
+                          {model.description ?? model.id}
+                          {model.reasoning?.efforts.length ? ` · 思考 ${model.reasoning.efforts.length} 段階` : ''}
+                        </div>
                       </div>
-                      {busy === `${group.id}/${model.id}` ? <Loader2 className="size-4 animate-spin" /> : selected && <Check className="size-4 text-brand" />}
+                      {busy?.startsWith(`${group.id}/${model.id}/`) ? <Loader2 className="size-4 animate-spin" /> : selected && <Check className="size-4 text-brand" />}
                     </button>
                   )
                 })}
               </div>
             </div>
           ))}
+          <button onClick={onOpenSettings} className="mt-1 flex w-full items-center justify-center gap-1.5 py-2 text-[13px] text-muted-foreground">
+            <Plus className="size-4" />モデル・プロバイダーを追加
+          </button>
         </div>
       </SheetContent>
     </Sheet>

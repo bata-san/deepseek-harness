@@ -26,9 +26,9 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 /** Japanese copy, checked against the English keys. */
 export const ja = {
   'title': 'NodeJS インスペクター',
-  'toggle': 'NodeJS インスペクターの表示切り替え',
+  'toggle': 'NodeJS インスペクターを開閉',
   'close': '折りたたむ',
-  'resize': 'NodeJS インスペクターパネルのサイズ変更',
+  'resize': 'NodeJS インスペクターパネルの高さを調整',
   'frameTitle': 'NodeJS インスペクター',
 } satisfies Record<keyof typeof en, string>
 

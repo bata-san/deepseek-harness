@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "DeepSeek セッションログ送信",
-    "description": "有効にすると、公式モデル API のリクエストと共にセッションログを DeepSeek に送信します。"
+    "title": "DeepSeek へのセッションログ送信",
+    "description": "公式 DeepSeek API へのリクエストに、セッションログを差分で欠けなく含めます。"
   }
 }

@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "GitHub Webhook",
-    "description": "GitHub HTTP Webhook の署名を検証し、Webhook ランタイムに転送します。"
+    "description": "署名付きの GitHub HTTP Webhook を検証し、Webhook サービスに転送します。"
   }
 }

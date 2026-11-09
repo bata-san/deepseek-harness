@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "DeepSeek アカウントモデル接続",
-    "description": "ログイン済みの DeepSeek アカウントでモデルサービスに接続します。"
+    "title": "DeepSeek アカウント接続",
+    "description": "サインイン済みの DeepSeek アカウントを使ってモデルサービスに接続します。"
   }
 }

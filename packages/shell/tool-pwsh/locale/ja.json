@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "PowerShell コマンドツール",
-    "description": "AI が PowerShell コマンドを実行できます。"
+    "title": "PowerShell ツール",
+    "description": "エージェントが PowerShell コマンドを実行できるようにします。"
   }
 }

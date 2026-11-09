@@ -57,19 +57,19 @@ export function formLabels(t: (key: ShellSettingsLocaleKey) => string): Settings
 /** Japanese copy, checked against the English keys. */
 export const ja = {
   'title': 'シェル',
-  'description': '各コマンドの実行時間と出力量を制限します。',
-  'timeoutMs': 'コマンドのタイムアウト (ms)',
-  'timeoutMsHint': '1つのコマンドが強制終了されるまでに実行できる時間。',
-  'maxOutputBytes': 'ストリームごとの出力上限 (バイト)',
-  'maxOutputBytesHint': 'この上限を超えた出力は失われず、一時ファイルに書き出されます。',
+  'description': '各コマンドの最大実行時間と最大出力量を制限します。',
+  'timeoutMs': 'コマンドのタイムアウト（ミリ秒）',
+  'timeoutMsHint': '1 つのコマンドを強制終了するまでに実行を許可する時間です。',
+  'maxOutputBytes': 'ストリームごとの出力上限（バイト）',
+  'maxOutputBytesHint': '上限を超えた出力は破棄されず、一時ファイルに書き出されます。',
   'overridden': '上書き済み',
-  'reset': 'デフォルトに戻す',
-  'readOnly': 'このデプロイでは設定が読み取り専用で保存されます。',
-  'unavailable': 'このプラグインは読み込まれていないため、現在設定できません。',
+  'reset': '既定値に戻す',
+  'readOnly': 'この環境では設定が読み取り専用で保存されています。',
+  'unavailable': 'このプラグインは読み込まれていないため、現在は設定できません。',
   'save': '保存',
   'saving': '保存中…',
-  'saveFailed': 'デプロイがこれらの値を受け付けませんでした。修正のため残されています。',
-  'invalidNumber': '数値を入力するか、空欄のままにするとデフォルトが使用されます。',
+  'saveFailed': 'この環境では入力した値を受け付けられませんでした。値はそのまま残してあるので修正してください。',
+  'invalidNumber': '数値を入力してください。空欄にすると既定値を使用します。',
 } satisfies Record<keyof typeof en, string>
 
 /** Spanish dictionary, checked against the English keys. */

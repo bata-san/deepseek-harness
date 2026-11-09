@@ -27,9 +27,9 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 /** Japanese copy, checked against the English keys. */
 export const ja = {
   'title': 'HTML',
-  'frame': 'HTMLドキュメントのプレビュー',
-  'loading': 'ドキュメントをレンダリング中...',
-  'failed': 'このHTMLドキュメントをプレビューできませんでした。',
+  'frame': 'HTML ドキュメントのプレビュー',
+  'loading': 'ドキュメントを表示中…',
+  'failed': 'この HTML ドキュメントはプレビューできませんでした。',
 } satisfies Record<keyof typeof en, string>
 
 /** Spanish dictionary, checked against the English keys. */

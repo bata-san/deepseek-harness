@@ -23,12 +23,12 @@ export const zh: Record<ActionCardKey, string> = {
 
 /** Japanese card frame, fallback and tool-row copy. */
 export const ja: Record<ActionCardKey, string> = {
-  expandBrief: 'すべて表示', collapseBrief: '折りたたむ',
-  dismiss: '今はしない', dismissed: '却下済み', replaced: '置き換え済み',
-  unavailable: 'この操作は利用できません。プラグイン画面でプラグインを確認してください。',
-  transport: '結果を確認できませんでした。再接続してカードを確認してから再試行してください。',
-  'row.title': 'アクションカード', 'row.preparing': 'カードを準備中', 'row.running': '提案中',
-  'row.ok': '提案済み', 'row.error': '表示されませんでした', 'row.stopped': '中断されました', 'row.inspect': '呼び出しを確認',
+  expandBrief: 'さらに表示', collapseBrief: '表示を減らす',
+  dismiss: '今はしない', dismissed: '非表示にしました', replaced: '置き換えられました',
+  unavailable: 'この操作は現在利用できません。「プラグイン」でプラグインの状態を確認してください。',
+  transport: '結果を確認できませんでした。再接続してカードの状態を確認してから再試行してください。',
+  'row.title': 'アクションカード', 'row.preparing': 'カードを準備中…', 'row.running': '提案中…',
+  'row.ok': '提案済み', 'row.error': '表示なし', 'row.stopped': '中断', 'row.inspect': '呼び出しを確認',
 }
 
 /** Spanish card frame, fallback and tool-row copy. */

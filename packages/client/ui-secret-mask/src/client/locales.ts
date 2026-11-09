@@ -30,7 +30,7 @@ export const en = {
 /** Japanese copy, checked against the English keys. */
 export const ja = {
   'secret.reveal': 'シークレットを表示',
-  'secret.hide': 'シークレットを隠す',
+  'secret.hide': 'シークレットを非表示',
 } satisfies Record<keyof typeof en, string>
 
 /** Spanish dictionary, checked against the English keys. */

@@ -42,18 +42,18 @@ export type SessionLogDownloadKey = keyof typeof zh
 
 /** Japanese copy, checked against the English keys. */
 export const ja = {
-  'menu.copyMarkdown': 'セッションを Markdown としてコピー',
+  'menu.copyMarkdown': 'セッションを Markdown 形式でコピー',
   'menu.download': 'セッションログをダウンロード',
   'menu.feedback': 'フィードバック',
-  'toast.copied': 'セッションを Markdown としてコピーしました',
-  'toast.preparationFailed': 'コピーするセッションを読み取れませんでした。再試行してください。',
-  'toast.clipboardFailed': 'クリップボードに書き込めませんでした。クリップボードの権限を確認して再試行してください。',
+  'toast.copied': 'セッションを Markdown 形式でコピーしました。',
+  'toast.preparationFailed': 'コピー用にセッションを読み込めませんでした。もう一度お試しください。',
+  'toast.clipboardFailed': 'クリップボードに書き込めませんでした。クリップボードへのアクセス権限を確認して、もう一度お試しください。',
   'dialog.session': 'セッション: {sessionId}',
-  'dialog.preparingTitle': 'セッションをエクスポート中',
-  'dialog.preparingDescription': '指定のセッション、そのサブセッション、添付ファイルを含むZIPを準備しています。',
+  'dialog.preparingTitle': 'セッションをエクスポート中…',
+  'dialog.preparingDescription': '選択したセッション、そのサブセッション、添付ファイルをまとめた ZIP ファイルを準備しています。',
   'dialog.successTitle': 'セッションのダウンロードを開始しました',
-  'dialog.successDescription': 'ブラウザがセッションZIPをダウンロードしています。',
-  'dialog.errorTitle': 'セッションのエクスポートに失敗しました',
+  'dialog.successDescription': 'ブラウザーでセッションの ZIP ファイルをダウンロードしています。',
+  'dialog.errorTitle': 'セッションをエクスポートできませんでした',
   'dialog.close': '閉じる',
   'dialog.commandFailed': 'セッションのエクスポートを開始できませんでした。',
 } satisfies Record<keyof typeof en, string>

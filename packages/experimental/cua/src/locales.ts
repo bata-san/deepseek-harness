@@ -16,8 +16,8 @@ export const zh = {
 
 /** Japanese application-access messages. */
 export const ja = {
-  question: 'エージェントが Computer Use でこのアプリを操作することを許可しますか？',
-  detail: 'プラグインページで、すべてのセッションのアプリ権限を管理できます。',
+  question: 'エージェントにコンピューター操作（Computer Use）でこのアプリの操作を許可しますか？',
+  detail: 'すべてのセッションのアプリ権限は、プラグインページで管理できます。',
   approve: 'このセッションで許可',
 } satisfies Record<keyof typeof en, string>
 

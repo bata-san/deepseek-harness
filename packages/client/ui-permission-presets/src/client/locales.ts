@@ -86,17 +86,17 @@ export const accessEn = {
 /** Japanese copy, checked against the English keys. */
 export const ja = {
   'title': '権限',
-  'description': '新しいセッションのデフォルトの権限モードを選択',
-  'loading': '読み込み中',
+  'description': '新しいセッションで使う既定の権限モードを選びます',
+  'loading': '読み込み中…',
   'unavailable': '利用不可',
-  'preset.readOnly': '読み取り専用',
-  'preset.workspaceWrite': 'ワークスペース書き込み',
+  'preset.readOnly': '読み取りのみ',
+  'preset.workspaceWrite': 'ワークスペース内の書き込み',
   'preset.fullAccess': 'フルアクセス',
   'confirm.title': 'フルアクセスを有効にしますか？',
-  'confirm.description': 'フルアクセスでは、新しいセッションで確認ステップが減り、機密操作・ファイル変更・外部コマンドなど多くの操作を直接実行できるようになります。以降のタスクを信頼できる場合にのみ使用してください。',
-  'confirm.acknowledge': 'リスクを理解し、続行します',
+  'confirm.description': 'フルアクセスにすると、新しいセッションでは確認の手順が減り、重要な操作、ファイルの変更、外部コマンドの実行など、より多くの操作がそのまま実行されます。今後のタスクを信頼できる場合にのみ使用してください。',
+  'confirm.acknowledge': 'リスクを理解したうえで続行する',
   'confirm.cancel': 'キャンセル',
-  'confirm.enable': 'フルアクセスを有効にする',
+  'confirm.enable': 'フルアクセスを有効化',
 } satisfies Record<keyof typeof en, string>
 
 /** Spanish dictionary, checked against the English keys. */
@@ -181,23 +181,23 @@ export const pt = {
 
 /** Japanese copy, checked against the English keys. */
 export const accessJa = {
-  'mode': 'アクセスモード、現在: {name}',
+  'mode': 'アクセスモード（現在: {name}）',
   'close': '閉じる',
-  'preset.readOnly': '読み取り専用',
-  'preset.workspaceWrite': 'ワークスペース書き込み',
+  'preset.readOnly': '読み取りのみ',
+  'preset.workspaceWrite': 'ワークスペース内の書き込み',
   'preset.fullAccess': 'フルアクセス',
   'confirm.title': 'フルアクセスを有効にしますか？',
-  'confirm.description': 'フルアクセスでは確認ステップが減り、エージェントが機密操作・ファイル変更・外部コマンドなど多くの操作を直接実行できるようになります。現在のタスクを信頼できる場合にのみ使用してください。',
-  'confirm.acknowledge': 'リスクを理解し、続行します',
+  'confirm.description': 'フルアクセスにすると確認の手順が減り、エージェントが重要な操作、ファイルの変更、外部コマンドの実行など、より多くの操作をそのまま実行します。現在のタスクを信頼できる場合にのみ使用してください。',
+  'confirm.acknowledge': 'リスクを理解したうえで続行する',
   'confirm.cancel': 'キャンセル',
-  'confirm.enable': 'フルアクセスを有効にする',
-  'auto.label': '自動認可レビュー',
+  'confirm.enable': 'フルアクセスを有効化',
+  'auto.label': '自動レビュー',
   'auto.badge': 'EXP',
-  'auto.description': 'すべてのネイティブツール呼び出しと PTC 内部呼び出しを実験的な同一モデルでレビューしたうえで、サンドボックスなしで実行します。',
-  'auto.confirm.title': '自動認可レビュー（実験的）を有効にしますか？',
-  'auto.confirm.description': '自動認可レビューはサンドボックスなしで実行されます。ネイティブツール呼び出しと PTC 内部呼び出しのたびに、現在のエージェントと同じモデルが許可可否をレビューし、拒否された呼び出しはあなたが承認または却下します。この機能は実験的であり、操作を誤って許可・拒否する可能性があり、追加のトークンを消費します。',
-  'auto.confirm.acknowledge': 'これらのリスクを理解し、続行します',
-  'auto.confirm.enable': '自動認可レビューを有効にする',
+  'auto.description': 'サンドボックスを使わずに実行します。ネイティブのツール呼び出しと PTC 内部の呼び出しは、毎回同じモデルによる実験的なレビューを経てから実行されます。',
+  'auto.confirm.title': '自動レビュー（実験的）を有効にしますか？',
+  'auto.confirm.description': '自動レビューはサンドボックスを使わずに実行します。ネイティブのツール呼び出しと PTC 内部の呼び出しの前に、現在のエージェントと同じモデルが許可してよいかを毎回レビューします。レビューで拒否された呼び出しは、ユーザーが許可するか拒否するかを決めます。この機能は実験的なもので、本来拒否すべき操作を許可したり、その逆が起きたりする可能性があります。また、追加のトークンを消費します。',
+  'auto.confirm.acknowledge': 'これらのリスクを理解したうえで続行する',
+  'auto.confirm.enable': '自動レビューを有効化',
 } satisfies Record<keyof typeof accessEn, string>
 
 /** Spanish dictionary, checked against the English keys. */

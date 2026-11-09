@@ -34,10 +34,10 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 export const ja = {
   ...zoomJa,
   'title': '画像',
-  'preview': '画像プレビュー: {name}',
-  'loading': 'ドキュメントをレンダリング中...',
-  'failed': 'この画像を表示できませんでした。',
-  'unsupported': '画像プレビューには完全なファイル内容が必要です。',
+  'preview': '画像のプレビュー：{name}',
+  'loading': 'ドキュメントを描画中…',
+  'failed': 'この画像は表示できませんでした。',
+  'unsupported': '画像をプレビューするには、ファイルの内容がすべて必要です。',
 } satisfies Record<keyof typeof en, string>
 
 /** Spanish dictionary, checked against the English keys. */

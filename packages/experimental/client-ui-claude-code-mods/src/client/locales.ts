@@ -24,10 +24,10 @@ export const en = {
 
 /** Japanese copy, checked against the English keys. */
 export const ja = {
-  'band': 'Claude Code の改造',
-  'pressing': '実行中…',
-  'press.failed': 'ボタンが失敗しました: {message}',
-  'press.stale': 'そのボタンは以前の描画のものです。バンドは更新されました',
+  'band': 'Claude Code の Mod',
+  'pressing': '処理中…',
+  'press.failed': 'ボタンの操作に失敗しました: {message}',
+  'press.stale': 'このボタンは以前の描画のものです。バンドを更新しました',
 } satisfies Record<keyof typeof en, string>
 
 /** Spanish dictionary, checked against the English keys. */

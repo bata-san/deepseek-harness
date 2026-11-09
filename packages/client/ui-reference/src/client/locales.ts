@@ -61,21 +61,21 @@ export const en = {
 
 /** Japanese copy, checked against the English keys. */
 export const ja = {
-  'section.files': 'ファイルとフォルダ',
+  'section.files': 'ファイルとフォルダー',
   'section.subagents': 'サブエージェント',
   'section.sessions': 'セッション',
-  'candidate.noCwd': '（cwdなし）',
+  'candidate.noCwd': '（作業ディレクトリなし）',
   'crumb.root': 'ワークスペース',
   'fileOpen.title': 'ファイルを開けませんでした',
   'fileOpen.failed': '「{path}」を開けませんでした。再試行するか、このメッセージを閉じてください。',
   'fileOpen.close': '閉じる',
   'fileOpen.retry': '再試行',
-  'time.now': '今',
-  'time.minutes': '{n}分',
-  'time.hours': '{n}時間',
-  'time.days': '{n}日',
-  'time.months': '{n}か月',
-  'time.years': '{n}年',
+  'time.now': 'たった今',
+  'time.minutes': '{n} 分',
+  'time.hours': '{n} 時間',
+  'time.days': '{n} 日',
+  'time.months': '{n} か月',
+  'time.years': '{n} 年',
 } satisfies Record<keyof typeof en, string>
 
 /** Spanish dictionary, checked against the English keys. */

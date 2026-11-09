@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "RustXNG web search",
+    "description": "Adds web_search backed by a self-hosted RustXNG (SearXNG-compatible) metasearch server. No API key needed."
+  }
+}

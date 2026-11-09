@@ -1,0 +1,21 @@
+{
+  "name": "dsh-web-search-rustxng",
+  "version": "0.1.0",
+  "description": "web_search provider backed by a self-hosted RustXNG (SearXNG-compatible) metasearch instance",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./package.json": "./package.json",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "files": ["index.js", "cordis.patch.yml", "locale/*.json"],
+  "keywords": ["dsh-plugin"],
+  "license": "MIT",
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

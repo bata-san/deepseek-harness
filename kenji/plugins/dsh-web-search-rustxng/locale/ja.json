@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "RustXNG Web 検索",
+    "description": "自前でホストした RustXNG（SearXNG 互換のメタ検索）で web_search を使えるようにします。API キーは不要です。"
+  }
+}

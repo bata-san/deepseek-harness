@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "Claude Code mods UI",
-    "description": "入力欄の上に各セッションの拡張ツリーを表示し、ボタン操作をブリッジサービスに送信します。"
+    "title": "Claude Code の mod 画面",
+    "description": "各セッションの拡張ツリーを入力欄の上に表示し、ボタン操作を拡張サービスに送ります。"
   }
 }

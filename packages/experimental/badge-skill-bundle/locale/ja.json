@@ -1,7 +1,7 @@
 {
   "meta": {
     "title": "DSH バッジスキル",
-    "description": "エージェントが文書や PR などの成果物に「powered by dsh」バッジを追加できます。",
+    "description": "ドキュメントやプルリクエストなどの出力に、エージェントが「powered by dsh」バッジを追加できるようにします。",
     "detail": "docs/DETAIL.md"
   }
 }

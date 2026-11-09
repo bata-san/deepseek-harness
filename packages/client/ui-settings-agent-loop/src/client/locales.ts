@@ -52,17 +52,17 @@ export function formLabels(t: (key: AgentLoopSettingsLocaleKey) => string): Sett
 /** Japanese copy, checked against the English keys. */
 export const ja = {
   'title': 'エージェントループ',
-  'description': 'エージェントのツール呼び出しのディスパッチ方法を制御します。',
-  'maxParallel': '並列ツール呼び出し',
-  'maxParallelHint': '1ステップ内で同時に実行される並列安全呼び出しの上限。',
+  'description': 'エージェントがツール呼び出しを実行する方法を制御します。',
+  'maxParallel': 'ツールの並列呼び出し数',
+  'maxParallelHint': '1 ステップ内で同時に実行できる、並列実行が安全な呼び出しの上限です。',
   'overridden': '上書き済み',
-  'reset': 'デフォルトにリセット',
-  'readOnly': 'このデプロイメントでは設定は読み取り専用で保存されます。',
-  'unavailable': 'このプラグインは読み込まれていないため、現在設定できません。',
+  'reset': '既定値に戻す',
+  'readOnly': 'この環境では設定が読み取り専用で保存されています。',
+  'unavailable': 'このプラグインは読み込まれていないため、現在は設定できません。',
   'save': '保存',
   'saving': '保存中…',
-  'saveFailed': 'デプロイがこれらの値を受け付けませんでした。修正のために残されています。',
-  'invalidNumber': '数値を入力するか、空欄のままにするとデフォルトが使用されます。',
+  'saveFailed': 'この環境では入力した値を受け付けられませんでした。値はそのまま残してあるので修正してください。',
+  'invalidNumber': '数値を入力してください。空欄にすると既定値を使用します。',
 } satisfies Record<keyof typeof en, string>
 
 /** Spanish dictionary, checked against the English keys. */

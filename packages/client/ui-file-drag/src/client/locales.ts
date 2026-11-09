@@ -5,7 +5,7 @@ export const zh = { failed: '拖放失败，请重试' }
 export const en = { failed: 'Drag failed. Try again.' } satisfies Record<keyof typeof zh, string>
 
 /** Japanese file drag failure copy. */
-export const ja = { failed: 'ドラッグ＆ドロップに失敗しました。もう一度お試しください。' } satisfies Record<keyof typeof zh, string>
+export const ja = { failed: 'ドラッグできませんでした。もう一度お試しください。' } satisfies Record<keyof typeof zh, string>
 
 /** Spanish dictionary, checked against the English keys. */
 export const es = { failed: 'Error al arrastrar. Intentar otra vez.' } satisfies Record<keyof typeof en, string>

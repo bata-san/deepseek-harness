@@ -25,9 +25,9 @@ export const zh: Record<PluginsSettingsLocaleKey, string> = {
 export const ja = {
   'nav': '組み込みプラグイン',
   'title': '組み込みプラグイン',
-  'intro': 'このデプロイメントに含まれるプラグインを確認します。',
-  'tabs': 'プラグインビュー',
-  'empty': 'このデプロイメントにはプラグインビューがありません。',
+  'intro': 'この環境に同梱されているプラグインを確認できます。',
+  'tabs': 'プラグインのビュー',
+  'empty': 'この環境で表示できるプラグインのビューはありません。',
 } satisfies Record<keyof typeof en, string>
 
 /** Spanish dictionary, checked against the English keys. */

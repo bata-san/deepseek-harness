@@ -45,22 +45,22 @@ export const en = {
 
 /** Japanese copy, checked against the English keys. */
 export const ja = {
-  'chip.label': '計画',
-  'preview.title': '計画',
-  'preview.document': '計画 · Markdown',
+  'chip.label': 'プラン',
+  'preview.title': 'プラン',
+  'preview.document': 'プラン · Markdown',
   'preview.action': '開く',
-  'preview.open': 'サイドバーで計画を開く',
-  'preview.full': '計画全体を表示',
-  'preview.openNamed': '計画を開く: {title}',
-  'preview.loading': '計画を読み込み中…',
-  'preview.failed': '計画を読み込めませんでした',
-  'preview.invalidAddress': '計画のアドレスが無効です',
-  'preview.notFound': 'この計画は見つかりませんでした',
-  'preview.unavailable': '計画のプレビューを利用できません',
-  'preview.expired': 'この一時的な計画プレビューは期限切れです。保留中のレビューカードから再度開いてください。',
-  'chip.on.aria': '計画モードはオンです。押すとオフになります',
-  'chip.on.title': '計画モードはオンです — クリックでオフ (/plan off)',
-  'chip.exitFailed': '計画モードを終了できませんでした',
+  'preview.open': 'サイドバーでプランを開く',
+  'preview.full': 'プラン全文を表示',
+  'preview.openNamed': 'プランを開く: {title}',
+  'preview.loading': 'プランを読み込み中…',
+  'preview.failed': 'プランを読み込めませんでした',
+  'preview.invalidAddress': 'プランのアドレスが無効です',
+  'preview.notFound': 'このプランは見つかりません',
+  'preview.unavailable': 'プランのプレビューを利用できません',
+  'preview.expired': 'この一時的なプランのプレビューは有効期限が切れています。レビュー待ちのカードから開き直してください。',
+  'chip.on.aria': 'プランモードがオンです。押すとオフになります',
+  'chip.on.title': 'プランモードがオンです。クリックでオフにします（/plan off）',
+  'chip.exitFailed': 'プランモードを終了できませんでした',
 } satisfies Record<keyof typeof en, string>
 
 /** Spanish dictionary, checked against the English keys. */

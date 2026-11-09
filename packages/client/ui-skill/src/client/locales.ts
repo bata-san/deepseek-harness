@@ -33,13 +33,13 @@ export const en = {
 /** Japanese copy, checked against the English keys. */
 export const ja = {
   'row.title': 'スキル',
-  'row.running': 'スキルを読み込み中',
-  'row.preparing': 'スキルの読み込みを準備中',
-  'row.failed': 'スキルの読み込みに失敗しました',
-  'row.stopped': 'スキルの読み込みが停止しました',
-  'row.instructions': '手順',
-  'row.inspect': '詳細を確認',
-  'menu.userOnly': 'ユーザー専用',
+  'row.running': 'スキルを読み込み中…',
+  'row.preparing': 'スキルの読み込みを準備中…',
+  'row.failed': 'スキルを読み込めませんでした',
+  'row.stopped': 'スキルの読み込みを停止しました',
+  'row.instructions': '指示内容',
+  'row.inspect': '詳細',
+  'menu.userOnly': 'ユーザーのみ',
 } satisfies Record<keyof typeof en, string>
 
 /** Spanish dictionary, checked against the English keys. */

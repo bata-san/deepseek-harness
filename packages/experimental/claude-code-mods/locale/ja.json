@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "Claude Code mods",
-    "description": "Claude Code の拡張モジュールを読み込み、Harness の拡張ポイントでフックチェーンを実行します。"
+    "title": "Claude Code の mod",
+    "description": "Claude Code の拡張機能を読み込み、そのフックを Harness の拡張ポイント経由で実行します。"
   }
 }

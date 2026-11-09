@@ -37,17 +37,17 @@ export const en = {
 
 /** ja file-action labels. */
 export const ja = {
-  'menu.finder': 'Finder に表示',
-  'menu.reveal': 'フォルダーに表示',
+  'menu.finder': 'Finder で表示',
+  'menu.reveal': 'フォルダーで表示',
   'menu.saveAs': '名前を付けて保存…',
   'menu.copied': 'コピーしました',
   'menu.copyImage': '画像をコピー',
   'menu.download': 'ダウンロード',
-  'menu.saveFailed': '保存できません。元のファイルと保存先を確認して再試行してください。',
-  'menu.copyFailed': 'コピーできません。内容を確認して再試行してください。',
+  'menu.saveFailed': '保存できませんでした。保存元と保存先を確認してから、もう一度お試しください。',
+  'menu.copyFailed': 'コピーできませんでした。内容が利用できる状態か確認してから、もう一度お試しください。',
   'menu.saved': '保存しました',
   'menu.downloadStarted': 'ダウンロードを開始しました',
-  'menu.downloaded': 'ダウンロードしました',
+  'menu.downloaded': 'ダウンロードが完了しました',
   'path.revealError': 'ファイルの場所を表示できませんでした。もう一度お試しください。',
 } satisfies Record<FileActionKey, string>
 

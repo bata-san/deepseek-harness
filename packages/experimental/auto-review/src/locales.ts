@@ -14,8 +14,8 @@ export const zh = {
 
 /** Japanese approval messages. */
 export const ja = {
-  denied: '自動認可レビューがこの呼び出しを拒否しました。',
-  deniedWithReason: (reason: string): string => `自動認可レビューがこの呼び出しを拒否しました：${reason}`,
+  denied: '自動レビューでこの呼び出しが拒否されました。',
+  deniedWithReason: (reason: string): string => `自動レビューでこの呼び出しが拒否されました: ${reason}`,
 } satisfies typeof en
 
 /** Spanish dictionary, checked against the English keys. */

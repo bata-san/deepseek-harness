@@ -1,0 +1,6 @@
+- insert:
+    - id: web-search-rustxng
+      name: 'dsh-web-search-rustxng'
+      config:
+        baseURL: http://127.0.0.1:29483
+        timeoutMs: 20000
