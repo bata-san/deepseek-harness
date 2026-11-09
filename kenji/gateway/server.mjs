@@ -193,12 +193,15 @@ function sessionCookie(req, value, maxAge) {
 }
 
 // 状態を変えるリクエストは同一オリジンからのみ受け付ける（CSRF 対策）
+// ngrok の内部エンドポイント経由では Host が書き換わることがあるため、公開オリジンは TRUSTED_ORIGINS で追加できる
+const TRUSTED_ORIGINS = new Set((process.env.TRUSTED_ORIGINS ?? '').split(',').map(s => s.trim().replace(/\/+$/, '')).filter(Boolean))
 function sameOrigin(req) {
   const origin = req.headers.origin
   if (!origin) return true
+  if (TRUSTED_ORIGINS.has(origin)) return true
   try {
-    const host = req.headers['x-forwarded-host'] ?? req.headers.host
-    return new URL(origin).host === host
+    const originHost = new URL(origin).host
+    return originHost === req.headers.host || originHost === req.headers['x-forwarded-host']
   } catch {
     return false
   }
