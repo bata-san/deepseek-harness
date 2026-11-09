@@ -648,12 +648,24 @@
   }
 }
 
-/* Touch: header actions and the overflow row reach finger size; fine pointers keep the compact header. */
+/* Touch: header actions (36px, so three fit beside the title) and the overflow row reach finger size; fine pointers keep the compact header. */
 @media (pointer: coarse) {
   .searchButton,
   .iconButton {
-    width: 40px;
+    width: 36px;
+    height: 36px;
+  }
+
+  .sectionHeader {
     height: 40px;
+  }
+
+  .headerActions {
+    max-width: 76px;
+  }
+
+  .headerActionsHidden {
+    max-width: 0;
   }
 
   .sessionOverflowButton {
