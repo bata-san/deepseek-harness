@@ -34,7 +34,7 @@ function Step($name, [scriptblock]$block) {
 
 git config --global core.longpaths true
 if ($IfChanged -and (Test-Path (Join-Path $src '.git'))) {
-  git -C $src fetch --depth 1 origin $Branch 2>&1 | Out-Null
+  git -C $src fetch --depth 1 origin $Branch
   $local = (git -C $src rev-parse HEAD).Trim()
   $remote = (git -C $src rev-parse FETCH_HEAD).Trim()
   if ($local -eq $remote) { Write-Host "up to date: $local"; exit 0 }
