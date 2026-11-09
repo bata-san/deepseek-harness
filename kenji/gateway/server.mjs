@@ -127,13 +127,13 @@ async function getInstance(user) {
     instances.set(key, inst)
   }
   inst.lastActive = Date.now()
-  if (!inst.child && !inst.starting && !shuttingDown) inst.starting = startDsh(inst).finally(() => { inst.starting = null })
+  if (!inst.child && !inst.starting && !shuttingDown && Date.now() >= (inst.nextStartAt ?? 0)) inst.starting = startDsh(inst).finally(() => { inst.starting = null })
   return inst
 }
 
 async function startDsh(inst) {
   inst.stopped = false
-  inst.port ||= await freePort(DSH_PORT_BASE + instances.size)
+  inst.port = await freePort(inst.port || DSH_PORT_BASE + instances.size)
   const extra = (process.env.DSH_EXTRA_ARGS ?? '').split(/\s+/).filter(Boolean)
   const args = [...dshEntry(), 'web', '--no-open', '--host', '127.0.0.1', '--port', String(inst.port),
     ...(PUBLIC_URL ? ['--public-url', PUBLIC_URL.endsWith('/') ? PUBLIC_URL : `${PUBLIC_URL}/`] : []), ...extra]
@@ -174,6 +174,7 @@ async function startDsh(inst) {
     if (shuttingDown || inst.stopped) return
     inst.restarts += 1
     const delay = Math.min(30_000, 1000 * 2 ** Math.min(inst.restarts, 5))
+    inst.nextStartAt = Date.now() + delay
     setTimeout(() => { if (!inst.child && !inst.starting && !shuttingDown && !inst.stopped) inst.starting = startDsh(inst).finally(() => { inst.starting = null }) }, delay)
   })
 }
@@ -242,10 +243,20 @@ async function exchangeToken(inst) {
   }
 }
 
+/** Windows は親を止めても子が残るため、dsh とその子プロセスをまとめて終了する */
+function killTree(child) {
+  if (!child?.pid) return
+  if (process.platform === 'win32') {
+    spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true }).on('error', () => child.kill())
+  } else {
+    child.kill()
+  }
+}
+
 function stopInstance(inst) {
   inst.stopped = true
   inst.ready = false
-  inst.child?.kill()
+  killTree(inst.child)
 }
 
 // ---------------------------------------------------------------------------
