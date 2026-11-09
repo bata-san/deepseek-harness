@@ -3,7 +3,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {
   AlertTriangle, ArrowDown, ArrowUp, Brain, Check, ChevronRight, Copy, FileCode2, Hand, Loader2, ShieldAlert, ShieldCheck,
-  Mic, Plus, Sparkles, Square, Terminal, Wrench, X, Zap,
+  ImagePlus, Mic, Plus, Sparkles, Square, Terminal, Wrench, X, Zap,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -358,6 +358,21 @@ export function QuestionCard({ question, onAnswer }: { question: QuestionRequest
 // ---------------------------------------------------------------------------
 // 入力欄
 // ---------------------------------------------------------------------------
+export type ImagePart = { type: 'image'; mediaType: string; data: string; name?: string }
+
+/** 画像を長辺 2048px 以内の JPEG/PNG に縮めて base64 にする（通信量とトークンを抑える） */
+async function toImagePart(file: File): Promise<ImagePart> {
+  const bitmap = await createImageBitmap(file)
+  const scale = Math.min(1, 2048 / Math.max(bitmap.width, bitmap.height))
+  const canvas = document.createElement('canvas')
+  canvas.width = Math.round(bitmap.width * scale)
+  canvas.height = Math.round(bitmap.height * scale)
+  canvas.getContext('2d')!.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+  const mediaType = file.type === 'image/png' ? 'image/png' : 'image/jpeg'
+  const url = canvas.toDataURL(mediaType, 0.85)
+  return { type: 'image', mediaType, data: url.slice(url.indexOf(',') + 1), name: file.name }
+}
+
 type SpeechRecognitionLike = {
   lang: string
   interimResults: boolean
@@ -414,10 +429,12 @@ export function Composer({ running, disabled, modelLabel, modeLabel, modeDanger,
   context?: { used: number; window: number } | null
   snippets: string[]
   onModel: () => void
-  onSend: (text: string, mode: 'queue' | 'steer') => Promise<void>
+  onSend: (text: string, mode: 'queue' | 'steer', images: ImagePart[]) => Promise<void>
   onStop: () => void
 }) {
   const [text, setText] = useState(() => sessionStorage.getItem('kh.draft') ?? '')
+  const [images, setImages] = useState<ImagePart[]>([])
+  const fileInput = useRef<HTMLInputElement>(null)
   const [sending, setSending] = useState(false)
   const [steer, setSteer] = useState(false)
   const [menu, setMenu] = useState(false)
@@ -436,13 +453,16 @@ export function Composer({ running, disabled, modelLabel, modeLabel, modeDanger,
 
   const send = async (value = text) => {
     const trimmed = value.trim()
-    if (!trimmed || sending) return
+    if ((!trimmed && images.length === 0) || sending) return
     setSending(true)
     setMenu(false)
     vibrate()
     try {
-      await onSend(trimmed, running && steer ? 'steer' : 'queue')
-      if (value === text) setText('')
+      await onSend(trimmed, running && steer ? 'steer' : 'queue', value === text ? images : [])
+      if (value === text) {
+        setText('')
+        setImages([])
+      }
       setSteer(false)
     } finally {
       setSending(false)
@@ -473,11 +493,24 @@ export function Composer({ running, disabled, modelLabel, modeLabel, modeDanger,
     r.start()
   }
 
-  const showStop = running && !text.trim()
+  const pickImages = async (files: FileList | null) => {
+    if (!files) return
+    const added: ImagePart[] = []
+    for (const file of Array.from(files).slice(0, 8)) {
+      try { added.push(await toImagePart(file)) } catch { /* 読めない画像は飛ばす */ }
+    }
+    setImages(prev => [...prev, ...added].slice(0, 8))
+    setMenu(false)
+  }
+
+  const showStop = running && !text.trim() && images.length === 0
   return (
     <div className="px-3 pb-[max(env(safe-area-inset-bottom),0.75rem)] pt-1">
       {menu && (
         <div className="mx-auto mb-2 max-w-3xl overflow-hidden rounded-2xl border bg-card shadow-xl">
+          <button onClick={() => fileInput.current?.click()} className="flex w-full items-center gap-2 border-b px-4 py-2.5 text-left text-[14px] active:bg-accent">
+            <ImagePlus className="size-4" />画像を添付
+          </button>
           <div className="px-4 pb-1 pt-3 text-xs font-medium text-muted-foreground">定型文</div>
           {snippets.map(snippet => (
             <button key={snippet} disabled={disabled || sending} onClick={() => void send(snippet)}
@@ -490,7 +523,20 @@ export function Composer({ running, disabled, modelLabel, modeLabel, modeDanger,
           )}
         </div>
       )}
+      <input ref={fileInput} type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden
+        onChange={e => { void pickImages(e.target.files); e.target.value = '' }} />
       <div className={cn('mx-auto max-w-3xl rounded-[24px] border bg-card px-1.5 pb-1.5 pt-0.5 shadow-sm', steer && 'border-warning/60')}>
+        {images.length > 0 && (
+          <div className="no-scrollbar flex gap-2 overflow-x-auto px-2 pt-2">
+            {images.map((img, i) => (
+              <div key={i} className="relative shrink-0">
+                <img src={`data:${img.mediaType};base64,${img.data}`} alt={img.name ?? ''} className="size-16 rounded-xl object-cover" />
+                <button aria-label="画像を外す" onClick={() => setImages(images.filter((_, j) => j !== i))}
+                  className="absolute -right-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full bg-foreground text-background"><X className="size-3" /></button>
+              </div>
+            ))}
+          </div>
+        )}
         <textarea ref={area} rows={1} value={text} disabled={disabled}
           onChange={e => setText(e.target.value)}
           onFocus={() => setMenu(false)}
@@ -509,12 +555,11 @@ export function Composer({ running, disabled, modelLabel, modeLabel, modeDanger,
           </button>
           <button onClick={onMode} aria-label="モードと権限"
             className={cn('flex h-9 shrink-0 items-center gap-1 rounded-full bg-secondary px-2.5 text-[12px] font-medium', modeDanger && 'bg-destructive/15 text-destructive')}>
-            {modeDanger ? <ShieldAlert className="size-4" /> : <ShieldCheck className="size-4" />}<span className="max-w-[5.5rem] truncate">{modeLabel}</span>
+            {modeDanger ? <ShieldAlert className="size-4" /> : <ShieldCheck className="size-4" />}<span className="max-w-[4.5rem] truncate">{modeLabel}</span>
           </button>
-          <button onClick={onModel} className="flex h-9 min-w-0 items-center gap-1.5 rounded-full bg-secondary px-3.5 text-[13px] font-medium">
-            <span className="truncate">{modelLabel}</span>
+          <button onClick={onModel} className="flex h-9 min-w-[3rem] flex-1 items-center rounded-full bg-secondary px-3 text-left text-[12px] font-medium">
+            <span className="min-w-0 truncate">{modelLabel}</span>
           </button>
-          <div className="flex-1" />
           {context && <ContextRing used={context.used} window={context.window} />}
           {voice && (
             <button onClick={toggleVoice} aria-label="音声入力"
@@ -526,7 +571,7 @@ export function Composer({ running, disabled, modelLabel, modeLabel, modeDanger,
             ? <button onClick={() => { vibrate(20); onStop() }} aria-label="停止" className="flex size-9 shrink-0 items-center justify-center rounded-full bg-secondary">
                 <Square className="size-4 fill-current" />
               </button>
-            : <button onClick={() => void send()} disabled={!text.trim() || sending || disabled} aria-label="送信"
+            : <button onClick={() => void send()} disabled={(!text.trim() && images.length === 0) || sending || disabled} aria-label="送信"
                 className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground disabled:opacity-30">
                 {sending ? <Loader2 className="size-4 animate-spin" /> : <ArrowUp className="size-4" />}
               </button>}

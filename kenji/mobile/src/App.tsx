@@ -3,7 +3,7 @@ import {
   ArrowLeft, Check, ChevronDown, Folder, FolderOpen, Loader2, LogOut, Menu, Monitor, MoreVertical, Package, Plus, RefreshCw, Search, Server,
   Settings as SettingsIcon, ShieldAlert, WifiOff, X,
 } from 'lucide-react'
-import { ApprovalCard, Composer, MessageList, QuestionCard } from '@/components/Chat'
+import { ApprovalCard, Composer, MessageList, QuestionCard, type ImagePart } from '@/components/Chat'
 import { ModeSheet, PERMISSION_LABELS, modeName } from '@/components/ModeSheet'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -144,11 +144,12 @@ function Shell({ me, onLogout }: { me: Me; onLogout: () => void }) {
     return value.sessionId
   }, [refresh, setSessionId, go, defaults])
 
-  const send = useCallback(async (text: string, mode: 'queue' | 'steer') => {
+  const send = useCallback(async (text: string, mode: 'queue' | 'steer', images: ImagePart[] = []) => {
     let id = sessionId
     if (!id) id = await createSession(me.workspace)
+    const content = [...(text ? [{ type: 'text', text }] : []), ...images]
     await call('session/prompt', {
-      request: { requestId: newId(), sessionId: id, mode, content: [{ type: 'text', text }], clientTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone },
+      request: { requestId: newId(), sessionId: id, mode, content, clientTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone },
     })
     void refresh()
   }, [sessionId, createSession, me.workspace, refresh])

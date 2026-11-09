@@ -40,7 +40,7 @@ async function mutate(ns: string, ops: { op: 'set' | 'unset'; path: string[]; va
 type ModelEntry = { id: string; name?: string; contextWindow?: number; input?: ('text' | 'image')[]; reasoningEfforts?: Record<string, string | null> | false }
 type Discovered = { id: string; name?: string; contextWindow?: number; inputModalities?: string[] }
 /** 思考レベル: キーが選択肢、値が API に送る文字列 */
-const STANDARD_EFFORTS: Record<string, string> = { low: 'low', mid: 'medium', high: 'high', max: 'max' }
+const STANDARD_EFFORTS: Record<string, string> = { low: 'low', medium: 'medium', high: 'high', max: 'max' }
 type ProviderEntry = { apiKeyEnv?: string; baseURL?: string; displayName?: string; api?: string; models?: ModelEntry[] }
 
 function fromDiscovered(m: Discovered): ModelEntry {
@@ -68,7 +68,7 @@ function ModelRow({ model, onChange, onRemove }: { model: ModelEntry; onChange: 
           <Eye className="size-3" />画像入力
         </button>
         <button className={chip(reasoning)} onClick={() => { vibrate(5); onChange({ ...model, reasoningEfforts: reasoning ? false : { ...STANDARD_EFFORTS } }) }}>
-          <Brain className="size-3" />思考 low / mid / high / max
+          <Brain className="size-3" />思考 low / medium / high / max
         </button>
         <label className="flex items-center gap-1 text-[11px] text-muted-foreground">
           <input inputMode="numeric" value={model.contextWindow ? String(Math.round(model.contextWindow / 1000)) : ''} placeholder="自動"
