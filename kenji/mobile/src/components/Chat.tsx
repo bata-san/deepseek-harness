@@ -395,27 +395,20 @@ function compact(n: number): string {
   return String(n)
 }
 
-/** コンテキスト使用率のリング。タップで内訳を表示 */
-function ContextRing({ used, window }: { used: number; window: number }) {
-  const [open, setOpen] = useState(false)
+/** モデルボタン内に出す小さなコンテキスト使用率 */
+function ContextMini({ used, window }: { used: number; window: number }) {
   const ratio = Math.min(1, used / window)
-  const r = 9, c = 2 * Math.PI * r
-  const color = ratio > 0.85 ? 'hsl(var(--destructive))' : ratio > 0.6 ? 'hsl(var(--warning))' : 'hsl(var(--muted-foreground))'
+  const r = 5, c = 2 * Math.PI * r
+  const color = ratio > 0.85 ? 'hsl(var(--destructive))' : ratio > 0.6 ? 'hsl(var(--warning))' : 'currentColor'
   return (
-    <div className="relative">
-      <button onClick={() => { setOpen(!open); vibrate(5) }} aria-label="コンテキスト使用量" className="flex size-9 items-center justify-center rounded-full">
-        <svg viewBox="0 0 24 24" className="size-6 -rotate-90">
-          <circle cx="12" cy="12" r={r} fill="none" stroke="hsl(var(--border))" strokeWidth="3" />
-          <circle cx="12" cy="12" r={r} fill="none" stroke={color} strokeWidth="3" strokeLinecap="round" strokeDasharray={`${c * ratio} ${c}`} />
-        </svg>
-      </button>
-      {open && (
-        <div className="absolute bottom-11 right-0 z-20 w-max rounded-xl border bg-card px-3 py-2 text-xs shadow-xl">
-          <div className="font-medium">コンテキスト {Math.round(ratio * 100)}%</div>
-          <div className="text-muted-foreground">{compact(used)} / {compact(window)} トークン</div>
-        </div>
-      )}
-    </div>
+    <span className="flex shrink-0 items-center gap-0.5" title={`コンテキスト ${compact(used)} / ${compact(window)} トークン`}>
+      ·
+      <svg viewBox="0 0 14 14" className="size-2.5 -rotate-90" aria-hidden>
+        <circle cx="7" cy="7" r={r} fill="none" stroke="hsl(var(--border))" strokeWidth="2.5" />
+        <circle cx="7" cy="7" r={r} fill="none" stroke={color} strokeWidth="2.5" strokeDasharray={`${c * ratio} ${c}`} />
+      </svg>
+      {Math.round(ratio * 100)}%
+    </span>
   )
 }
 
@@ -553,14 +546,17 @@ export function Composer({ running, disabled, modelLabel, modeLabel, modeDanger,
             className={cn('flex size-9 shrink-0 items-center justify-center rounded-full bg-secondary', menu && 'bg-accent')}>
             <Plus className={cn('size-4 transition-transform', menu && 'rotate-45')} />
           </button>
-          <button onClick={onMode} aria-label="モードと権限"
-            className={cn('flex h-9 shrink-0 items-center gap-1 rounded-full bg-secondary px-2.5 text-[12px] font-medium', modeDanger && 'bg-destructive/15 text-destructive')}>
-            {modeDanger ? <ShieldAlert className="size-4" /> : <ShieldCheck className="size-4" />}<span className="max-w-[4.5rem] truncate">{modeLabel}</span>
+          <button onClick={onMode} aria-label={`モードと権限: ${modeLabel}`} title={modeLabel}
+            className={cn('flex size-9 shrink-0 items-center justify-center rounded-full bg-secondary', modeDanger && 'bg-destructive/15 text-destructive')}>
+            {modeDanger ? <ShieldAlert className="size-4" /> : <ShieldCheck className="size-4" />}
           </button>
-          <button onClick={onModel} className="flex h-9 min-w-[3rem] flex-1 items-center rounded-full bg-secondary px-3 text-left text-[12px] font-medium">
-            <span className="min-w-0 truncate">{modelLabel}</span>
+          <button onClick={onModel} className="flex h-9 min-w-[3rem] flex-1 flex-col items-start justify-center rounded-full bg-secondary px-3 text-left leading-tight">
+            <span className="w-full truncate text-[12px] font-medium">{modelLabel}</span>
+            <span className="flex w-full items-center gap-1 truncate text-[10px] text-muted-foreground">
+              <span className="truncate">{modeLabel}</span>
+              {context && <ContextMini used={context.used} window={context.window} />}
+            </span>
           </button>
-          {context && <ContextRing used={context.used} window={context.window} />}
           {voice && (
             <button onClick={toggleVoice} aria-label="音声入力"
               className={cn('flex size-9 shrink-0 items-center justify-center rounded-full bg-secondary', listening && 'bg-destructive text-destructive-foreground')}>

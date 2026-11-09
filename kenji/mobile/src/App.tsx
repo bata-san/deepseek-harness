@@ -163,7 +163,8 @@ function Shell({ me, onLogout }: { me: Me; onLogout: () => void }) {
   const selectedModel = findModel(catalog, selection)
   const effortId = selection?.reasoningEffort ?? selectedModel?.reasoning?.defaultEffort
   const effortName = selectedModel?.reasoning?.efforts.find(e => e.id === effortId)?.name ?? effortId
-  const modelLabel = selection ? `${selectedModel?.name ?? selection.model}${effortName ? ` · ${effortName}` : ''}` : 'モデル'
+  const shortModel = (selectedModel?.name ?? selection?.model ?? '').replace(/-(\d{4}|\d{8}|latest|preview)$/i, '')
+  const modelLabel = selection ? `${shortModel}${effortName ? ` · ${effortName}` : ''}` : 'モデル'
 
   const proj = session.projections as { agentPreset?: string; permissions?: { currentValue?: string }; plan?: { active?: boolean } }
   const currentMode = sessionId ? (proj.agentPreset ?? undefined) : defaults.mode
