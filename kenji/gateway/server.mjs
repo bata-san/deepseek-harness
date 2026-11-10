@@ -347,7 +347,7 @@ async function readBody(req, limit = 64 * 1024) {
 
 function sendJson(res, status, value, headers = {}) {
   const body = JSON.stringify(value)
-  res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', ...headers })
+  res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store, no-transform', ...headers })
   res.end(body)
 }
 
@@ -415,10 +415,16 @@ const STARTING_HTML = `<!doctype html><html lang="ja"><meta charset="utf-8"><met
 <style>body{margin:0;height:100vh;display:flex;align-items:center;justify-content:center;background:#181818;color:#f2f2f2;font:15px "IBM Plex Sans JP",system-ui,sans-serif}</style>
 <body>ハーネスを起動しています…（数秒で自動的に開きます）</body></html>`
 
+/** Cloudflare の Rocket Loader / 自動圧縮はスクリプトを書き換えて実行を遅らせる。no-transform で書き換えを止める */
+function noTransform(value) {
+  const current = Array.isArray(value) ? value.join(', ') : String(value ?? '')
+  return /\bno-transform\b/i.test(current) ? current : (current ? `${current}, no-transform` : 'no-transform')
+}
+
 function proxyHttp(req, res, upstreamPath, inst) {
   if (!inst?.ready) {
     if (wantsHtml(req)) {
-      res.writeHead(503, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'retry-after': '3' })
+      res.writeHead(503, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store, no-transform', 'retry-after': '3' })
       return res.end(STARTING_HTML)
     }
     return sendJson(res, 503, { error: 'ハーネスを起動中です。少し待ってから再読み込みしてください。' })
@@ -436,6 +442,7 @@ function proxyHttp(req, res, upstreamPath, inst) {
       }
       headers[lower] = value
     }
+    headers['cache-control'] = noTransform(headers['cache-control'])
     res.writeHead(response.statusCode ?? 502, headers)
     response.pipe(res)
   })
@@ -518,7 +525,7 @@ function serveApp(res, name) {
 }
 
 function sendLogin(res) {
-  res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' })
+  res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store, no-transform', 'x-content-type-options': 'nosniff' })
   res.end(LOGIN_HTML)
 }
 
