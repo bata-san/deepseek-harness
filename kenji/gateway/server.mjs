@@ -406,6 +406,8 @@ function upstreamHeaders(req, inst) {
   return headers
 }
 
+const PUBLIC_STATIC = new Set(['/manifest.webmanifest', '/apple-touch-icon.png', '/favicon.svg', '/favicon-dark.svg'])
+
 const STARTING_HTML = `<!doctype html><html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="refresh" content="3"><title>起動中</title>
 <style>body{margin:0;height:100vh;display:flex;align-items:center;justify-content:center;background:#181818;color:#f2f2f2;font:15px "IBM Plex Sans JP",system-ui,sans-serif}</style>
@@ -566,6 +568,11 @@ const server = http.createServer(async (req, res) => {
     }
     if (rel.startsWith('/auth/')) return await handleAuth(req, res, rel)
 
+    // マニフェストとアイコンはブラウザが Cookie なしで取りに来る。中身はユーザーに依らない静的ファイルなので、準備済みのどの dsh からでも返す
+    if (PUBLIC_STATIC.has(rel) && (req.method === 'GET' || req.method === 'HEAD')) {
+      const any = [...instances.values()].find(i => i.ready)
+      if (any) return proxyHttp(req, res, rel + queryOf(url), any)
+    }
     const user = await authenticate(req)
     if (!user) {
       if (wantsHtml(req)) {
@@ -589,10 +596,6 @@ const server = http.createServer(async (req, res) => {
 server.on('upgrade', async (req, socket, head) => {
   const url = req.url ?? '/'
   const target = stripFull(relativePath(url).rel)
-  if (target !== '/api/remote.mux') {
-    socket.end('HTTP/1.1 404 Not Found\r\n\r\n')
-    return
-  }
   const user = await authenticate(req)
   if (!user || !sameOrigin(req)) {
     socket.end('HTTP/1.1 401 Unauthorized\r\n\r\n')
