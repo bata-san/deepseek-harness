@@ -169,6 +169,8 @@ async function startDsh(inst) {
   lineReader(child.stderr, onLine)
   child.on('exit', (code, signal) => {
     log(`dsh for ${inst.username} exited (code=${code} signal=${signal})`)
+    // 停止直後に起動し直した場合、古いプロセスの終了通知が新しいプロセスの状態を消さないようにする
+    if (inst.child !== child) return
     inst.child = null
     inst.ready = false
     if (shuttingDown || inst.stopped) return
