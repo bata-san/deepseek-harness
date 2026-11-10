@@ -58,7 +58,7 @@ public class MainActivity extends Activity {
     private static final String DEFAULT_URL = "https://kenji.4nanai.com/harness/";
     private static final int REQ_FILE = 1;
     private static final int REQ_AUDIO = 2;
-    /** A non-browser user agent keeps ngrok's free-tier browser interstitial away. */
+    /** Appended to the stock WebView user agent so the server can recognize the app. */
     private static final String UA_SUFFIX = " KenjiHarnessApp/1.0";
 
     private WebView web;
@@ -100,7 +100,7 @@ public class MainActivity extends Activity {
         s.setMediaPlaybackRequiresUserGesture(false);
         s.setAllowFileAccess(false);
         s.setSupportMultipleWindows(false);
-        s.setUserAgentString(s.getUserAgentString().replace("Mozilla/5.0 ", "") + UA_SUFFIX);
+        s.setUserAgentString(s.getUserAgentString() + UA_SUFFIX);
 
         web.setWebViewClient(new HarnessClient());
         web.setWebChromeClient(new HarnessChrome());

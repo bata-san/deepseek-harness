@@ -122,7 +122,7 @@ async function getInstance(user) {
     migrateLegacyHome(user.username, dshHome)
     inst = {
       username: user.username, rootDir, dshHome, port: 0, child: null, token: null, cookie: null,
-      ready: false, restarts: 0, lastLines: [], lastActive: Date.now(), stopped: false, starting: null,
+      ready: false, restarts: 0, lastLines: [], lastActive: Date.now(), stopped: false, starting: null, sockets: 0,
     }
     instances.set(key, inst)
   }
@@ -251,6 +251,16 @@ function killTree(child) {
   } else {
     child.kill()
   }
+}
+
+/** dsh の再起動直後に届いた再接続は、準備ができるまで少し待ってから中継する */
+async function waitReady(inst, ms) {
+  const until = Date.now() + ms
+  while (!inst.ready && Date.now() < until && !shuttingDown) {
+    if (!inst.child && !inst.starting && Date.now() >= (inst.nextStartAt ?? 0)) inst.starting = startDsh(inst).finally(() => { inst.starting = null })
+    await new Promise(r => setTimeout(r, 500))
+  }
+  return inst.ready
 }
 
 function stopInstance(inst) {
@@ -433,6 +443,9 @@ function proxyHttp(req, res, upstreamPath, inst) {
 }
 
 function proxyUpgrade(req, socket, head, upstreamPath, inst) {
+  inst.sockets += 1
+  let counted = true
+  const release = () => { if (counted) { counted = false; inst.sockets -= 1; inst.lastActive = Date.now() } }
   const target = net.connect(inst.port, '127.0.0.1', () => {
     const headers = upstreamHeaders(req, inst)
     headers.connection = 'Upgrade'
@@ -443,9 +456,14 @@ function proxyUpgrade(req, socket, head, upstreamPath, inst) {
     target.pipe(socket)
     socket.pipe(target)
   })
-  const close = () => { target.destroy(); socket.destroy() }
+  const close = () => { release(); target.destroy(); socket.destroy() }
   target.on('error', close)
   socket.on('error', close)
+  target.on('close', close)
+  socket.on('close', close)
+  // 通信があるあいだは「操作中」とみなす（画面を開いたまま放置しても止めない）
+  socket.on('data', () => { inst.lastActive = Date.now() })
+  target.on('data', () => { inst.lastActive = Date.now() })
 }
 
 // ---------------------------------------------------------------------------
@@ -581,8 +599,8 @@ server.on('upgrade', async (req, socket, head) => {
     return
   }
   const inst = await getInstance(user)
-  if (!inst?.ready) {
-    socket.end('HTTP/1.1 503 Service Unavailable\r\n\r\n')
+  if (!inst || !(await waitReady(inst, 30_000))) {
+    socket.end('HTTP/1.1 503 Service Unavailable\r\nRetry-After: 3\r\n\r\n')
     return
   }
   proxyUpgrade(req, socket, head, target + queryOf(url), inst)
@@ -638,7 +656,7 @@ async function anySessionRunning() {
 if (IDLE_MS > 0) {
   setInterval(async () => {
     for (const inst of instances.values()) {
-      if (!inst.child || Date.now() - inst.lastActive < IDLE_MS) continue
+      if (!inst.child || inst.sockets > 0 || Date.now() - inst.lastActive < IDLE_MS) continue
       if (await sessionRunning(inst)) { inst.lastActive = Date.now(); continue }
       log(`stopping the idle harness of ${inst.username}`)
       stopInstance(inst)

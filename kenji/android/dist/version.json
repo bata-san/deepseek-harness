@@ -1,6 +1,6 @@
 {
-  "versionName": "1.2.0",
-  "versionCode": 4,
-  "sha256": "8a1a467cc770f35eb94552302e04b7b1e1ba97d8f83bb36f52790159f6a0be03",
-  "notes": "接続先を Cloudflare Tunnel（kenji.4nanai.com）に変更しました。保存済みの ngrok の URL は自動で新しい URL に切り替わります。"
+  "versionName": "1.2.1",
+  "versionCode": 5,
+  "sha256": "ba68823eecad3d06ddb3d4af75a4405895943343322ca0ebd9fc93632312809d",
+  "notes": "標準の User-Agent に戻し、Cloudflare 経由の接続を安定させました。"
 }
