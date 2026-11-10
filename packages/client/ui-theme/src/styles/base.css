@@ -8,7 +8,7 @@
     'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif;
   --dsw-font-family: var(--dsh-font-family-text-default);
   --dsw-font-family-brand: 'Montserrat', var(--dsh-font-family-text-default);
-  --dsh-font-family-code-default: 'SF Mono', 'JetBrains Mono', 'Fira Code', Consolas,
+  --dsh-font-family-code-default: 'IBM Plex Mono', 'IBM Plex Sans JP', 'SF Mono', Consolas,
     'Liberation Mono', Menlo, Courier, 'PingFang SC', 'Microsoft YaHei';
   --ds-font-family-code: var(--dsh-font-family-code-default);
   --ds-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
@@ -29,6 +29,7 @@
 body {
   --dsw-font-family: var(--dsh-font-family-text, var(--dsh-font-family-text-default)), var(--dsh-font-family-text-default);
   --ds-font-family-code: var(--dsh-font-family-code, var(--dsh-font-family-code-default)), var(--dsh-font-family-code-default);
+  --dsw-font-mono: var(--ds-font-family-code);
   --dsw-alias-settings-card-fill: var(--dsw-alias-bg-layer-2);
   --dsw-alias-settings-card-stroke: var(--dsw-alias-border-l4);
 }
