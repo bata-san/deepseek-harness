@@ -238,6 +238,7 @@ async function exchangeToken(inst) {
         inst.ready = true
         inst.restarts = 0
         log(`dsh for ${inst.username} is ready`)
+        void primeCaches(inst)
         return
       }
       log(`token exchange for ${inst.username} returned ${response.status} without a cookie; retrying`)
@@ -259,6 +260,19 @@ function killTree(child) {
 }
 
 /** dsh の再起動直後に届いた再接続は、準備ができるまで少し待ってから中継する */
+/** 初回表示で必ず呼ばれる重い読み取り（プラグイン一覧）を起動直後に 1 回済ませ、dsh 側のキャッシュを温めておく */
+async function primeCaches(inst) {
+  try {
+    await fetch(`http://127.0.0.1:${inst.port}/api/pluginManager/listPlugins`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie: inst.cookie ?? '' },
+      body: JSON.stringify({ type: 'client-request', rpcId: `prime-${Date.now()}`, method: 'pluginManager/listPlugins', payload: { args: {} } }),
+    }).then(response => response.arrayBuffer())
+  } catch (error) {
+    log(`could not prime the plugin list of ${inst.username}:`, error.message)
+  }
+}
+
 async function waitReady(inst, ms) {
   const until = Date.now() + ms
   while (!inst.ready && Date.now() < until && !shuttingDown) {
