@@ -59,6 +59,7 @@ function readPackage(dir: string, fallbackName: string): PluginPackage | undefin
 /** Package lookup shared by metadata consumers in one profile process. */
 export class PluginPackages extends Service {
   private packages = new Map<string, PluginPackage | undefined>()
+  private metas = new Map<string, PluginLocalizedMeta | undefined>()
   private readonly interception: RuntimeInterception | undefined
   private disposeWorkerResolution: (() => void) | undefined
   private current: RuntimeResolution | undefined
@@ -93,6 +94,7 @@ export class PluginPackages extends Service {
     this.interception.replace(successor)
     this.current = successor
     this.packages = new Map()
+    this.metas = new Map()
     this.disposeWorkerResolution?.()
     this.disposeWorkerResolution = registerWorkerResolution(successor)
   }
@@ -129,13 +131,16 @@ export class PluginPackages extends Service {
   }
 
   /**
-   * Read display metadata without loading or activating the target plugin.
+   * Read display metadata without loading or activating the target plugin. Results are kept per
+   * resolution generation, like {@link packageOf}; {@link replace} discards them.
    * @param specifier - configured package module, including package subpaths.
    * @param parentURL - owning Loader tree's resolution base.
    * @returns local display metadata or its diagnostic; undefined for non-package requests or absent metadata.
    */
   metaOf(specifier: string, parentURL: string): PluginLocalizedMeta | undefined {
-    return readPluginMeta(specifier, parentURL)
+    const key = JSON.stringify({ specifier, parentURL })
+    if (!this.metas.has(key)) this.metas.set(key, readPluginMeta(specifier, parentURL))
+    return this.metas.get(key)
   }
 }
 

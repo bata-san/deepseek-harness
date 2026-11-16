@@ -19,6 +19,7 @@
 //   DSH_HOME       旧・共有データディレクトリ。LEGACY_HOME_OWNER のユーザーへ 1 回だけ移す（移行用）
 //   LEGACY_HOME_OWNER 旧共有データの持ち主（既定: admin）
 //   IDLE_MINUTES   実行中セッションのないユーザー別 dsh を止めるまでの無操作時間（既定: 30。0 で止めない）
+//   WARM_USERS     常時起動しておくユーザー名（, 区切り）。ゲートウェイ起動時に dsh を立ち上げ、無操作でも止めない
 //   DSH_EXTRA_ARGS dsh web に追加する引数（空白区切り）
 //   WORKSPACE_ROOT ユーザーごとのルートフォルダの親（例: C:\ProgramData\kenji\workspace）。
 //                  <WORKSPACE_ROOT>\<ユーザー名> がそのユーザーのホーム兼ルートで、
@@ -40,6 +41,7 @@ const BASE = normalizeBase(process.env.BASE_PATH ?? '/harness')
 const KENJI = (process.env.KENJI_URL ?? 'http://127.0.0.1:8787').replace(/\/+$/, '')
 const DSH_PORT_BASE = Number(process.env.DSH_PORT ?? 3080)
 const IDLE_MS = Number(process.env.IDLE_MINUTES ?? 30) * 60_000
+const WARM_USERS = new Set((process.env.WARM_USERS ?? '').split(',').map(name => name.trim().toLowerCase()).filter(Boolean))
 const LEGACY_HOME = process.env.DSH_HOME ? path.resolve(process.env.DSH_HOME) : ''
 const LEGACY_OWNER = (process.env.LEGACY_HOME_OWNER ?? 'admin').toLowerCase()
 const ROLE_RANK = { viewer: 0, operator: 1, admin: 2 }
@@ -123,6 +125,7 @@ async function getInstance(user) {
     inst = {
       username: user.username, rootDir, dshHome, port: 0, child: null, token: null, cookie: null,
       ready: false, restarts: 0, lastLines: [], lastActive: Date.now(), stopped: false, starting: null, sockets: 0,
+      warm: WARM_USERS.has(key),
     }
     instances.set(key, inst)
   }
@@ -668,7 +671,7 @@ async function anySessionRunning() {
 if (IDLE_MS > 0) {
   setInterval(async () => {
     for (const inst of instances.values()) {
-      if (!inst.child || inst.sockets > 0 || Date.now() - inst.lastActive < IDLE_MS) continue
+      if (!inst.child || inst.warm || inst.sockets > 0 || Date.now() - inst.lastActive < IDLE_MS) continue
       if (await sessionRunning(inst)) { inst.lastActive = Date.now(); continue }
       log(`stopping the idle harness of ${inst.username}`)
       stopInstance(inst)
@@ -691,5 +694,7 @@ process.on('SIGINT', () => shutdown(0))
 process.on('SIGTERM', () => shutdown(0))
 
 server.listen(PORT, HOST, () => {
+  // 常時起動ユーザーは最初のアクセスを待たずに起動しておく（初回表示の起動待ちをなくす）
+  for (const username of WARM_USERS) void getInstance({ username }).then((inst) => { if (!inst) log(`WARM_USERS: ${username} has no workspace`) })
   log(`listening on http://${HOST}:${PORT}${BASE}/ (harness root: ${ROOT}, user homes: ${WORKSPACE_ROOT || '(none)'})`)
 })

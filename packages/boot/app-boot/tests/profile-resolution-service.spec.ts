@@ -136,6 +136,8 @@ describe('profile package metadata service', () => {
     await ctx.plugin(PluginPackages)
     const parent = pathToFileURL(join(root, 'entry.mjs')).href
     expect(ctx.pluginPackages.metaOf('localized/private', parent)).toEqual({ title: { en: 'Local plugin', zh: '本地插件' } })
+    file(join(packageDir, 'locale', 'en.json'), '{"meta":{"title":"Edited"}}')
+    expect(ctx.pluginPackages.metaOf('localized/private', parent)).toEqual({ title: { en: 'Local plugin', zh: '本地插件' } })
     expect(ctx.pluginPackages.metaOf('localized', parent)).toBeUndefined()
     expect(ctx.pluginPackages.metaOf('node:fs', parent)).toBeUndefined()
     file(join(root, 'node_modules', 'invalid', 'package.json'), '{')
